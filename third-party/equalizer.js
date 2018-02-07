@@ -227,6 +227,8 @@
         if (changedDirection && band.direction.value > 0) {
           band.beat.scale = 3;
           band.beat.updated = true;
+          currentSummation += band.value;
+          bandsIncreased++;
         } else {
           band.beat.scale += (1 - band.beat.scale) * Equalizer.drift;
           band.beat.updated = false;
@@ -251,8 +253,6 @@
           > Equalizer.amplitude * Equalizer.threshold) {
           anchor.outlier.scale = 2;
           anchor.outlier.updated = true;
-          currentSummation += band.value;
-          bandsIncreased++;
         } else {
           anchor.outlier.scale += (1 - anchor.outlier.scale) * Equalizer.drift;
           anchor.outlier.updated = false;
@@ -267,7 +267,7 @@
       if (bandsIncreased > 0) {
         this.average.value = currentSummation / bandsIncreased;
       } else {
-        this.average.value += (0 - this.average.value) * Equalizer.drift / 10;
+        this.average.value -= this.average.value * Equalizer.drift * 0.1;
       }
 
       if (!silent) {
