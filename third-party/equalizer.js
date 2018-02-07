@@ -124,6 +124,7 @@
     this.average.linewidth = 1;
     this.average.noFill();
     this.average.index = 1;
+    this.average.value = 0;
 
     two.add(this.average);
 
@@ -179,39 +180,6 @@
       return this;
     },
 
-    createTimeline: function(timeline) {
-
-      var container = document.createElement('div');
-      container.style.position = 'relative';
-      elem.appendChild(container);
-
-      if (!timeline) {
-        this.timeline = new Equalizer.Timeline(
-          this, this.two.width, this.two.width * 1.5);
-      }
-      this.timeline.appendTo(container);
-
-      this.two.renderer.domElement.style.paddingBottom = 10 + 'px';
-
-      return this;
-
-    },
-
-    analyze: function(sound, json) {
-
-      this.sound = sound instanceof Sound
-        ? sound : new Sound.Empty(json);
-
-      if (!this.timeline) {
-        this.createTimeline();
-      }
-
-      this.timeline.analyze(this.sound, json);
-
-      return this;
-
-    },
-
     update: function(silent) {
 
       var two = this.two;
@@ -223,6 +191,8 @@
 
       var sum = 0;
       var bin = Math.floor(step);
+      var bandsIncreased = 0;
+      var currentSummation = 0;
 
       for (var j = 0, i = 0; j < this.analyzer.data.length; j++) {
 
@@ -281,6 +251,8 @@
           > Equalizer.amplitude * Equalizer.threshold) {
           anchor.outlier.scale = 2;
           anchor.outlier.updated = true;
+          currentSummation += band.value;
+          bandsIncreased++;
         } else {
           anchor.outlier.scale += (1 - anchor.outlier.scale) * Equalizer.drift;
           anchor.outlier.updated = false;
@@ -292,9 +264,10 @@
       }
 
       this.average.index++;
-
-      if (this.timeline) {
-        this.timeline.update(silent);
+      if (bandsIncreased > 0) {
+        this.average.value = currentSummation / bandsIncreased;
+      } else {
+        this.average.value += (0 - this.average.value) * Equalizer.drift / 10;
       }
 
       if (!silent) {

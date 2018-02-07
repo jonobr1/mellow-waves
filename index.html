@@ -2,7 +2,139 @@
 <html>
   <head>
     <meta charset="utf-8">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      div.equalizer {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        border: 1px solid #ccc;
+        background: white;
+      }
+      canvas {
+        background: black;
+      }
+    </style>
   </head>
   <body>
+    <div class="scripts">
+      <script src="./third-party/two.js"></script>
+      <script src="./third-party/sound.js"></script>
+      <script src="./third-party/equalizer.js"></script>
+      <!-- <script src="./src/app.js"></script> -->
+      <script>
+
+        var TWO_PI = Math.PI * 2;
+
+        var urls = [
+          'M01_1.mp3', 'M02_1.mp3', 'M03_1.mp3', 'M04_1.mp3', 'M05_1.mp3',
+          'M06_1.mp3', 'M07_1.mp3', 'M08_1.mp3', 'M09_1.mp3', 'M10_1.mp3',
+          'M11_1.mp3', 'M12_1.mp3', 'M13_1.mp3', 'M14_1.mp3', 'M15_1.mp3',
+          'M16_1.mp3', 'M17_1.mp3', 'M18_1.mp3', 'M19_1.mp3', 'M20_1.mp3',
+          'M21_1.mp3', 'M22_1.mp3', 'M23_1.mp3', 'M24_1.mp3', 'M25_1.mp3',
+          'M26_1.mp3', 'M27_1.mp3', 'M28_1.mp3', 'M29_1.mp3', 'M30_1.mp3'
+        ];
+
+        var sounds = [];
+        sounds.index = 0;
+        sounds.ready = false;
+
+        var equalizer, resolution = 11;
+        Two.Resolution = 512;
+
+        var two = new Two({
+          type: Two.Types.canvas,
+          fullscreen: true,
+          autostart: true
+        }).appendTo(document.body);
+
+        var ring = two.makeCircle(0, 0, Math.min(two.width, two.height) / 3);
+        ring.stroke = 'white';
+        ring.noFill();
+        ring.visible = false;
+        ring.curved = true;
+        ring.phi = 2;
+        ring.join = 'round';
+        ring.direction = 1;
+        ring.magnitude = 0.3;
+
+        for (var i = 0; i < urls.length; i++) {
+          var url = './assets/sounds/' + urls[i];
+          sounds.push(new Sound(url, loaded));
+        }
+
+        function loaded() {
+          sounds.index++;
+          if (sounds.index >= sounds.length && !sounds.ready) {
+            sounds.ready = true;
+            setup();
+          }
+        }
+
+        function setup() {
+
+          equalizer = new Equalizer().appendTo(document.body);
+
+          window.addEventListener('click', function() {
+            var sound = sounds[Math.floor(Math.random() * sounds.length)];
+            sound.play();
+            var seed = Math.random();
+            ring.phi = Math.floor(seed * 30) + 2;
+            ring.direction = Math.random() > 0.5 ? 1 : - 1;
+            ring.magnitude = Math.sin(seed * Math.PI + Math.PI / 2) * 0.9 + 0.1;
+          }, false);
+
+          window.addEventListener('resize', resize, false);
+          resize();
+
+          two.bind('update', update);
+
+        }
+
+        function update() {
+
+          equalizer.update();
+
+          var length = ring.vertices.length;
+          var radius = ring.radius;
+          var phi = ring.phi;
+          var fft = equalizer.average.value / 256;
+          var magnitude = ring.magnitude;
+
+          for (var i = 0; i < length; i++) {
+
+            var pct = i / (length - 1);
+            var sid = Math.floor(pct * resolution);
+
+            var anchor = ring.vertices[i];
+            var band = equalizer.bands[sid].value / 256;
+
+            var theta = pct * TWO_PI;
+            var phase = Math.sin(pct * TWO_PI * phi);
+            var amp = radius * (1 + phase * magnitude * fft);
+            var x = amp * Math.cos(theta);
+            var y = amp * Math.sin(theta);
+
+            anchor.x = x;
+            anchor.y = y;
+
+          }
+
+          ring.rotation += Math.PI / 16 * ring.direction;
+
+        }
+
+        function resize() {
+          ring._radius = Math.min(two.width, two.height) / 3;
+          ring.linewidth = ring.radius / 100;
+          ring.visible = true;
+          two.scene.translation.set(two.width / 2, two.height / 2);
+        }
+
+      </script>
+    </div>
   </body>
 </html>
