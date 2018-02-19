@@ -25,10 +25,11 @@
   </head>
   <body>
     <div class="scripts">
+      <script src="./third-party/three.js"></script>
       <script src="./third-party/two.js"></script>
       <script src="./third-party/sound.js"></script>
       <script src="./third-party/equalizer.js"></script>
-      <!-- <script src="./src/app.js"></script> -->
+      <script src="./src/sequencer.js"></script>
       <script>
 
         var TWO_PI = Math.PI * 2;
@@ -41,6 +42,13 @@
           'M21_1.mp3', 'M22_1.mp3', 'M23_1.mp3', 'M24_1.mp3', 'M25_1.mp3',
           'M26_1.mp3', 'M27_1.mp3', 'M28_1.mp3', 'M29_1.mp3', 'M30_1.mp3'
         ];
+
+        // TODO:
+        var freqs = {
+          a: 1, b: 1, c: 1, d: 1, e: 1, f: 1, g: 1, h: 1, i: 1, j: 1, k: 1,
+          l: 1, m: 1, n: 1, o: 1, p: 1, q: 1, r: 1, s: 1, t: 1, u: 1,
+          v: 1, w: 1, x: 1, y: 1, z: 1
+        };
 
         var keys = {
           a: 0, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, h: 7, i: 8, j: 9, k: 10,
@@ -60,6 +68,8 @@
           fullscreen: true,
           autostart: true
         }).appendTo(document.body);
+
+        var sequencer = new Sequencer(Sound.ctx);
 
         var ring = two.makeCircle(0, 0, Math.min(two.width, two.height) / 3);
         ring.stroke = 'white';
@@ -98,29 +108,45 @@
 
           equalizer = new Equalizer().appendTo(document.body);
 
-          window.addEventListener('click', function() {
+          window.addEventListener('click', function(e) {
             var sound = sounds[Math.floor(Math.random() * sounds.length)];
-            trigger(sound);
+            triggerOnce(sound);
+          }, false);
+
+          window.addEventListener('touchstart', function(e) {
+            // TODO: Add touches
           }, false);
 
           window.addEventListener('keydown', function(e) {
             var key = String.fromCharCode(e.which).toLowerCase();
             var sound = sounds[keys[key]];
+            var freq = freqs[key];
             if (!sound) {
               return;
             }
-            trigger(sound);
+            trigger(sound, freq);
           }, false);
+
+          window.addEventListener('keyup', function(e) {
+            var key = String.fromCharCode(e.which).toLowerCase();
+            var sound = sounds[keys[key]];
+            if (!sound) {
+              return;
+            }
+            sequencer.remove(sound);
+          });
 
           window.addEventListener('resize', resize, false);
           resize();
 
           two.bind('update', update);
+          sequencer.start();
 
         }
 
         function update() {
 
+          sequencer.update();
           equalizer.update();
 
           var length = ring.vertices.length;
@@ -159,7 +185,15 @@
           two.scene.translation.set(two.width / 2, two.height / 2);
         }
 
-        function trigger(sound) {
+        function trigger(sound, freq) {
+          sequencer.add(sound, freq);  // TODO: Add frequencies
+          ring.phi = sound.phi;
+          ring.direction = sound.direction;
+          ring.magnitude = sound.magnitude;
+          ring.velocity = sound.velocity;
+        }
+
+        function triggerOnce(sound) {
           sound.play();
           ring.phi = sound.phi;
           ring.direction = sound.direction;
