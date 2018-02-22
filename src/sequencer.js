@@ -10,15 +10,26 @@
 
   };
 
+  Sequencer.Resolution = 32;
+  Sequencer.Buffer = 0.01; // In seconds to stay in time
+
   Sequencer.prototype.bpm = 120;
   Sequencer.prototype.running = false;
+  Sequencer.prototype.interval = null;
 
   Sequencer.prototype.start = function() {
+    var scope = this;
     this.running = true;
     for (var id in this.registry.map) {
       var sound = this.registry.map[id];
       sound.play();
     }
+    if (this.interval) {
+      clearInterval(this.interval);
+    }
+    this.interval = setInterval(function() {
+      scope.update();
+    }, 1000 * (60 / this.bpm) / Sequencer.Resolution);
     return this;
   };
 
@@ -28,6 +39,8 @@
       var sound = this.registry.map[id];
       sound.pause();
     }
+    clearInterval(this.interval);
+    this.interval = null;
     return this;
   };
 
@@ -37,6 +50,8 @@
       var sound = this.registry.map[id];
       sound.stop();
     }
+    clearInterval(this.interval);
+    this.interval = null;
     return this;
   };
 
@@ -96,8 +111,12 @@
       var frequency = item.frequency;
 
       var elapsed = now - sound._startTime;
-      if (elapsed > frequency / bps) {
-        sound.play();
+      var seconds = frequency / bps;
+
+      if (elapsed > seconds - Sequencer.Buffer) {
+        sound.play({
+          time: sound._startTime + seconds
+        });
       }
 
     }

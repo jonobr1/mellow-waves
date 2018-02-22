@@ -6,7 +6,7 @@
 
   var root = this;
   var previousSound = root.Sound || {};
-  var ctx, analysis, has;
+  var ctx, analysis, has, volume;
   var identity = function(v) { return v; };
 
   root.AudioContext = root.AudioContext || root.webkitAudioContext;
@@ -15,9 +15,11 @@
   if (has) {
 
     ctx = new root.AudioContext();
+    volume = ctx.createGain();
     analysis = ctx.createAnalyser();
 
-    analysis.connect(ctx.destination);
+    volume.connect(ctx.destination);
+    analysis.connect(volume);
     analysis.fftSize = 128;
     analysis.data = new Uint8Array(analysis.frequencyBinCount);
 
@@ -70,6 +72,8 @@
     ctx: ctx,
 
     analysis: analysis,
+
+    volume: volume,
 
     noConflict: function() {
       root.Sound = previousSound;

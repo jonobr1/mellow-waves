@@ -43,11 +43,10 @@
           'M26_1.mp3', 'M27_1.mp3', 'M28_1.mp3', 'M29_1.mp3', 'M30_1.mp3'
         ];
 
-        // TODO:
         var freqs = {
-          a: 1, b: 1, c: 1, d: 1, e: 1, f: 1, g: 1, h: 1, i: 1, j: 1, k: 1,
-          l: 1, m: 1, n: 1, o: 1, p: 1, q: 1, r: 1, s: 1, t: 1, u: 1,
-          v: 1, w: 1, x: 1, y: 1, z: 1
+          a: 1, b: 8, c: 0.5, d: 8, e: 8, f: 10, g: 1, h: 4, i: 2, j: 1.5, k: 2,
+          l: 3, m: 8, n: 8, o: 2, p: 5, q: 5, r: 2, s: 6, t: 1.5, u: 10,
+          v: 10, w: 10, x: 4, y: 8, z: 4
         };
 
         var keys = {
@@ -106,7 +105,7 @@
 
         function setup() {
 
-          equalizer = new Equalizer().appendTo(document.body);
+          equalizer = new Equalizer();//.appendTo(document.body);
 
           window.addEventListener('click', function(e) {
             var sound = sounds[Math.floor(Math.random() * sounds.length)];
@@ -139,6 +138,17 @@
           window.addEventListener('resize', resize, false);
           resize();
 
+          window.addEventListener('visibilitychange', function(e) {
+            switch (document.visibilityState) {
+              case 'visible':
+                Sound.volume.gain.value = 1;
+                break;
+              case 'hidden':
+                Sound.volume.gain.value = 0;
+                break;
+            }
+          }, false);
+
           two.bind('update', update);
           sequencer.start();
 
@@ -146,8 +156,7 @@
 
         function update() {
 
-          sequencer.update();
-          equalizer.update();
+          equalizer.update(true);
 
           var length = ring.vertices.length;
           var radius = ring.radius;
