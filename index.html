@@ -87,6 +87,7 @@
           new Array(9),
           new Array(7)
         ];
+        buttons.list = [];
 
         for (var i = 0; i < urls.length; i++) {
 
@@ -256,19 +257,19 @@
             anchor.x = x;
             anchor.y = y;
 
-          }
-
-          for (var i = 0; i < buttons.length; i++) {
-            for (var j = 0; j < buttons[i].length; j++) {
-              var button = buttons[i][j];
-              if (button.pressed) {
-                opacity = 1;
-              } else if (button.opacity > 0.001) {
-                button.opacity -= button.opacity * 0.0625;
-              } else {
-                button.opacity = 0;
-              }
+            var button = buttons.list[i];
+            if (!button) {
+              continue;
             }
+
+            if (button.pressed) {
+              opacity = 1;
+            } else if (button.opacity > 0.001) {
+              button.opacity -= button.opacity * 0.0625;
+            } else {
+              button.opacity = 0;
+            }
+
           }
 
           ring.rotation += ring.velocity * ring.direction;
@@ -335,11 +336,12 @@
           var sound = sounds[keys[toKey[id]]];
           var button = two.makeRoundedRectangle(0, 0, 0, 0, 12);
 
-          button.linewidth = 2;
+          button.linewidth = 1;
           button.stroke = 'white';
-          button.fill = 'rgba(255, 255, 255, 0.33)';
+          button.noFill();
           button.opacity = 0;
           button.sound = sound;
+          buttons.list.push(button);
 
           return button;
 
