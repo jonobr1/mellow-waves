@@ -59,7 +59,7 @@
    * Register a `Sound` with the sequencer and define
    * the looped interval at which it should play.
    */
-  Sequencer.prototype.add = function(sound, frequency) {
+  Sequencer.prototype.add = function(sound, frequency, callback) {
 
     var scope = this;
 
@@ -73,7 +73,8 @@
 
     this.registry.add(sound.uuid, {
       sound: sound,
-      frequency: frequency
+      frequency: frequency,
+      callback: callback
     });
 
     if (this.running) {
@@ -114,9 +115,13 @@
       var seconds = frequency / bps;
 
       if (elapsed > seconds - Sequencer.Buffer) {
+        var startTime = sound._startTime;
         sound.play({
-          time: sound._startTime + seconds
+          time: startTime + seconds
         });
+        if (item.callback) {
+          item.callback();
+        }
       }
 
     }

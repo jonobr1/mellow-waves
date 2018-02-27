@@ -205,6 +205,14 @@
               button.opacity = 0;
             }
 
+            if (button.fillOpacity > 0.001) {
+              button.fillOpacity -= button.fillOpacity * 0.0625;
+              button.fill = 'rgba(255, 255, 255, ' + button.fillOpacity + ')';
+            } else if (button.fillOpacity > 0) {
+              button.fillOpacity = 0;
+              button.fill = 'rgba(255, 255, 255, ' + button.fillOpacity + ')';
+            }
+
           }
 
           ring.rotation += ring.velocity * ring.direction;
@@ -251,11 +259,11 @@
 
         }
 
-        function trigger(sound) {
+        function trigger(sound, callback) {
           // TODO: is there a way to have a callback to change
           // the fill of a button when the sound repeats? And then
           // make it fade relative to the sound.frequency?
-          sequencer.add(sound, sound.frequency);
+          sequencer.add(sound, sound.frequency, callback);
           ring.phi = sound.phi;
           ring.direction = sound.direction;
           ring.magnitude = sound.magnitude;
@@ -287,9 +295,14 @@
           var cursors = {};
 
           var triggerButton = function(cursor, button) {
+
             cursor.button.pressed = true;
             button.opacity = 1;
-            trigger(button.sound);
+            button.fillOpacity = 1;
+
+            trigger(button.sound, function() {
+              button.fillOpacity = 1;
+            });
           };
           var touchstart = function(e) {
 
@@ -375,7 +388,7 @@
           };
           var release = function(cursor) {
             sequencer.remove(cursor.button.sound);
-            cursor.button.pressed = false;
+            // cursor.button.pressed = false;
             delete cursor.button;
           };
 
@@ -391,9 +404,16 @@
           var mouse = new Two.Vector();
 
           var triggerButton = function(button) {
+
             mouse.button.pressed = true;
+
             button.opacity = 1;
-            trigger(button.sound);
+            button.fillOpacity = 1;
+
+            trigger(button.sound, function() {
+              button.fillOpacity = 1;
+            });
+
           };
           var mousedown = function(e) {
 
