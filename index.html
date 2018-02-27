@@ -125,73 +125,8 @@
 
           equalizer = new Equalizer();//.appendTo(document.body);
 
-          var mouse = new Two.Vector();
-
-          var triggerButton = function(button) {
-            mouse.button.pressed = true;
-            button.opacity = 1;
-            trigger(button.sound);
-          };
-          var mousedown = function(e) {
-
-            mouse.set(e.clientX / two.width, e.clientY / two.height);
-
-            window.addEventListener('mousemove', mousemove, false);
-            window.addEventListener('mouseup', mouseup, false);
-
-            var row = Math.floor(buttons.length * mouse.y);
-            if (row >= 0 && row < buttons.length) {
-              var col = Math.floor(buttons[row].length * mouse.x);
-              if (col >= 0 && col < buttons[row].length) {
-                var button = buttons[row][col];
-                mouse.button = button;
-                triggerButton(button);
-              }
-            }
-
-          };
-          var mousemove = function(e) {
-
-            mouse.set(e.clientX / two.width, e.clientY / two.height);
-
-            var row = Math.floor(buttons.length * mouse.y);
-            if (row >= 0 && row < buttons.length) {
-              var col = Math.floor(buttons[row].length * mouse.x);
-              if (col >= 0 && col < buttons[row].length) {
-                var button = buttons[row][col];
-                if (button !== mouse.button) {
-                  if (mouse.button) {
-                    release();
-                  }
-                  mouse.button = button;
-                  triggerButton(button);
-                }
-              } else if (mouse.button) {
-                release();
-              }
-            } else if (mouse.button) {
-              release();
-            }
-
-          };
-          var mouseup = function(e) {
-            if (mouse.button) {
-              release();
-            }
-            window.removeEventListener('mousemove', mousemove, false);
-            window.removeEventListener('mouseup', mouseup, false);
-          };
-          var release = function() {
-            sequencer.remove(mouse.button.sound);
-            mouse.button.pressed = false;
-            delete mouse.button;
-          };
-
-          window.addEventListener('mousedown', mousedown, false);
-
-          window.addEventListener('touchstart', function(e) {
-            // TODO: Add touches
-          }, false);
+          setupMouseEvents();
+          setupTouchEvents();
 
           window.addEventListener('keydown', function(e) {
             var key = String.fromCharCode(e.which).toLowerCase();
@@ -344,6 +279,178 @@
           buttons.list.push(button);
 
           return button;
+
+        }
+
+        function setupTouchEvents() {
+
+          var cursors = {};
+
+          var triggerButton = function(cursor, button) {
+            cursor.button.pressed = true;
+            button.opacity = 1;
+            trigger(button.sound);
+          };
+          var touchstart = function(e) {
+
+            var touches = e.touches;
+            for (var i = 0; i < touches.length; i++) {
+
+              var touch = touches[i];
+              if (!(touch.identifier in cursors)) {
+                cursors[touch.identifier] = new Two.Vector(
+                  touch.clientX / two.width,
+                  touch.clientY / two.height
+                );
+              } else {
+                cursors[touch.identifier].set(
+                  touch.clientX / two.width,
+                  touch.clientY / two.height
+                );
+              }
+
+              var cursor = cursors[touch.identifier];
+              var row = Math.floor(buttons.length * cursor.y);
+
+              if (row >= 0 && row < buttons.length) {
+                var col = Math.floor(buttons[row].length * cursor.x);
+                if (col >= 0 && col < buttons[row].length) {
+                  var button = buttons[row][col];
+                  cursor.button = button;
+                  triggerButton(cursor, button);
+                }
+              }
+
+            }
+
+          };
+          var touchmove = function(e) {
+
+            var touches = e.touches;
+            for (var i = 0; i < touches.length; i++) {
+
+              var touch = touches[i];
+              if (!(touch.identifier in cursors)) {
+                cursors[touch.identifier] = new Two.Vector(
+                  touch.clientX / two.width,
+                  touch.clientY / two.height
+                );
+              } else {
+                cursors[touch.identifier].set(
+                  touch.clientX / two.width,
+                  touch.clientY / two.height
+                );
+              }
+
+              var cursor = cursors[touch.identifier];
+              var row = Math.floor(buttons.length * cursor.y);
+              if (row >= 0 && row < buttons.length) {
+                var col = Math.floor(buttons[row].length * cursor.x);
+                if (col >= 0 && col < buttons[row].length) {
+                  var button = buttons[row][col];
+                  if (button !== cursor.button) {
+                    if (cursor.button) {
+                      release(cursor);
+                    }
+                    cursor.button = button;
+                    triggerButton(cursor, button);
+                  }
+                } else if (cursor.button) {
+                  release(cursor);
+                }
+              } else if (cursor.button) {
+                release(cursor);
+              }
+
+            }
+
+          };
+          var touchend = function(e) {
+            for (var id in cursors) {
+              var cursor = cursors[id];
+              if (cursor.button) {
+                release(cursor);
+              }
+            }
+          };
+          var release = function(cursor) {
+            sequencer.remove(cursor.button.sound);
+            cursor.button.pressed = false;
+            delete cursor.button;
+          };
+
+          window.addEventListener('touchstart', touchstart, false);
+          window.addEventListener('touchmove', touchmove, false);
+          window.addEventListener('touchend', touchend, false);
+          window.addEventListener('touchcancel', touchend, false);
+
+        }
+
+        function setupMouseEvents() {
+
+          var mouse = new Two.Vector();
+
+          var triggerButton = function(button) {
+            mouse.button.pressed = true;
+            button.opacity = 1;
+            trigger(button.sound);
+          };
+          var mousedown = function(e) {
+
+            mouse.set(e.clientX / two.width, e.clientY / two.height);
+
+            window.addEventListener('mousemove', mousemove, false);
+            window.addEventListener('mouseup', mouseup, false);
+
+            var row = Math.floor(buttons.length * mouse.y);
+            if (row >= 0 && row < buttons.length) {
+              var col = Math.floor(buttons[row].length * mouse.x);
+              if (col >= 0 && col < buttons[row].length) {
+                var button = buttons[row][col];
+                mouse.button = button;
+                triggerButton(button);
+              }
+            }
+
+          };
+          var mousemove = function(e) {
+
+            mouse.set(e.clientX / two.width, e.clientY / two.height);
+
+            var row = Math.floor(buttons.length * mouse.y);
+            if (row >= 0 && row < buttons.length) {
+              var col = Math.floor(buttons[row].length * mouse.x);
+              if (col >= 0 && col < buttons[row].length) {
+                var button = buttons[row][col];
+                if (button !== mouse.button) {
+                  if (mouse.button) {
+                    release();
+                  }
+                  mouse.button = button;
+                  triggerButton(button);
+                }
+              } else if (mouse.button) {
+                release();
+              }
+            } else if (mouse.button) {
+              release();
+            }
+
+          };
+          var mouseup = function(e) {
+            if (mouse.button) {
+              release();
+            }
+            window.removeEventListener('mousemove', mousemove, false);
+            window.removeEventListener('mouseup', mouseup, false);
+          };
+          var release = function() {
+            sequencer.remove(mouse.button.sound);
+            mouse.button.pressed = false;
+            delete mouse.button;
+          };
+
+          window.addEventListener('mousedown', mousedown, false);
 
         }
 
