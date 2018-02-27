@@ -19,6 +19,7 @@
       }
       canvas {
         background: black;
+        cursor: border;
       }
     </style>
 
@@ -40,7 +41,7 @@
           'M11_1.mp3', 'M12_1.mp3', 'M13_1.mp3', 'M14_1.mp3', 'M15_1.mp3',
           'M16_1.mp3', 'M17_1.mp3', 'M18_1.mp3', 'M19_1.mp3', 'M20_1.mp3',
           'M21_1.mp3', 'M22_1.mp3', 'M23_1.mp3', 'M24_1.mp3', 'M25_1.mp3',
-          'M26_1.mp3', 'M27_1.mp3', 'M28_1.mp3', 'M29_1.mp3', 'M30_1.mp3'
+          'M26_1.mp3'//, 'M27_1.mp3', 'M28_1.mp3', 'M29_1.mp3', 'M30_1.mp3'
         ];
 
         var freqs = {
@@ -81,6 +82,12 @@
         ring.magnitude = 0.3;
         ring.velocity = 0;
 
+        var buttons = [
+          new Array(10),
+          new Array(9),
+          new Array(7)
+        ];
+
         for (var i = 0; i < urls.length; i++) {
 
           var url = './assets/sounds/' + urls[i];
@@ -92,7 +99,17 @@
           sounds[i].direction = Math.random() > 0.5 ? 1 : - 1;
           sounds[i].magnitude = Math.sin(seed * Math.PI + Math.PI / 2) * 0.5 + 0.1;
           sounds[i].velocity = Math.random() * Math.PI / 16 + Math.PI / 16;
+          sounds[i].key = getKey(i);
+          sounds[i].frequency = freqs[sounds[i].key];
 
+        }
+
+        for (var i = 0, id = 0; i < buttons.length; i++) {
+          var row = buttons[i];
+          for (var j = 0; j < row.length; j++) {
+            buttons[i][j] = createButton(i, j, id);
+            id++;
+          }
         }
 
         function loaded() {
@@ -107,10 +124,69 @@
 
           equalizer = new Equalizer();//.appendTo(document.body);
 
-          window.addEventListener('click', function(e) {
-            var sound = sounds[Math.floor(Math.random() * sounds.length)];
-            triggerOnce(sound);
-          }, false);
+          var mouse = new Two.Vector();
+
+          var triggerButton = function(button) {
+            mouse.button.pressed = true;
+            button.opacity = 1;
+            trigger(button.sound);
+          };
+          var mousedown = function(e) {
+
+            mouse.set(e.clientX / two.width, e.clientY / two.height);
+
+            window.addEventListener('mousemove', mousemove, false);
+            window.addEventListener('mouseup', mouseup, false);
+
+            var row = Math.floor(buttons.length * mouse.y);
+            if (row >= 0 && row < buttons.length) {
+              var col = Math.floor(buttons[row].length * mouse.x);
+              if (col >= 0 && col < buttons[row].length) {
+                var button = buttons[row][col];
+                mouse.button = button;
+                triggerButton(button);
+              }
+            }
+
+          };
+          var mousemove = function(e) {
+
+            mouse.set(e.clientX / two.width, e.clientY / two.height);
+
+            var row = Math.floor(buttons.length * mouse.y);
+            if (row >= 0 && row < buttons.length) {
+              var col = Math.floor(buttons[row].length * mouse.x);
+              if (col >= 0 && col < buttons[row].length) {
+                var button = buttons[row][col];
+                if (button !== mouse.button) {
+                  if (mouse.button) {
+                    release();
+                  }
+                  mouse.button = button;
+                  triggerButton(button);
+                }
+              } else if (mouse.button) {
+                release();
+              }
+            } else if (mouse.button) {
+              release();
+            }
+
+          };
+          var mouseup = function(e) {
+            if (mouse.button) {
+              release();
+            }
+            window.removeEventListener('mousemove', mousemove, false);
+            window.removeEventListener('mouseup', mouseup, false);
+          };
+          var release = function() {
+            sequencer.remove(mouse.button.sound);
+            mouse.button.pressed = false;
+            delete mouse.button;
+          };
+
+          window.addEventListener('mousedown', mousedown, false);
 
           window.addEventListener('touchstart', function(e) {
             // TODO: Add touches
@@ -119,11 +195,10 @@
           window.addEventListener('keydown', function(e) {
             var key = String.fromCharCode(e.which).toLowerCase();
             var sound = sounds[keys[key]];
-            var freq = freqs[key];
             if (!sound) {
               return;
             }
-            trigger(sound, freq);
+            trigger(sound);
           }, false);
 
           window.addEventListener('keyup', function(e) {
@@ -183,31 +258,92 @@
 
           }
 
+          for (var i = 0; i < buttons.length; i++) {
+            for (var j = 0; j < buttons[i].length; j++) {
+              var button = buttons[i][j];
+              if (button.pressed) {
+                opacity = 1;
+              } else if (button.opacity > 0.001) {
+                button.opacity -= button.opacity * 0.0625;
+              } else {
+                button.opacity = 0;
+              }
+            }
+          }
+
           ring.rotation += ring.velocity * ring.direction;
 
         }
 
         function resize() {
+
           ring._radius = Math.min(two.width, two.height) / 3;
           ring.linewidth = ring.radius / 100;
           ring.visible = true;
+
           two.scene.translation.set(two.width / 2, two.height / 2);
+
+          for (var i = 0; i < buttons.length; i++) {
+            var xpct = 1 / buttons[i].length;
+            var ypct = 1 / buttons.length;
+            for (var j = 0; j < buttons[i].length; j++) {
+
+              var button = buttons[i][j];
+              var x = (j + 0.5) / buttons[i].length;
+              var y = (i + 0.5) / buttons.length;
+
+              x -= 0.5;
+              x *= two.width;
+
+              y -= 0.5;
+              y *= two.height;
+
+              button.translation.set(x, y);
+              button.width = xpct * two.width;
+              button.height = ypct * two.height;
+
+            }
+          }
+
         }
 
-        function trigger(sound, freq) {
-          sequencer.add(sound, freq);  // TODO: Add frequencies
+        function trigger(sound) {
+          // TODO: is there a way to have a callback to change
+          // the fill of a button when the sound repeats? And then
+          // make it fade relative to the sound.frequency?
+          sequencer.add(sound, sound.frequency);
           ring.phi = sound.phi;
           ring.direction = sound.direction;
           ring.magnitude = sound.magnitude;
           ring.velocity = sound.velocity;
         }
 
-        function triggerOnce(sound) {
-          sound.play();
-          ring.phi = sound.phi;
-          ring.direction = sound.direction;
-          ring.magnitude = sound.magnitude;
-          ring.velocity = sound.velocity;
+        function createButton(col, row, id) {
+
+          var toKey = [
+            'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', 'a', 's', 'd',
+            'f', 'g', 'h', 'j', 'k', 'l', 'z', 'x', 'c', 'v', 'b', 'n', 'm'
+          ];
+          var sound = sounds[keys[toKey[id]]];
+          var button = two.makeRectangle(0, 0, 0, 0);
+
+          button.stroke = 'white';
+          button.fill = 'rgba(255, 255, 255, 0.33)';
+          button.opacity = 0;
+          button.sound = sound;
+
+          return button;
+
+        }
+
+        function getKey(i) {
+          for (var k in keys) {
+            var key = keys[k];
+            if (i === key) {
+              return k;
+            }
+          }
+          return null;
         }
 
       </script>
