@@ -114,10 +114,9 @@
       var elapsed = now - sound._startTime;
       var seconds = frequency / bps;
 
-      if (elapsed > seconds - Sequencer.Buffer) {
-        var startTime = sound._startTime;
+      if (elapsed >= seconds - Sequencer.Buffer) {
         sound.play({
-          time: startTime + seconds
+          time: sound._startTime + seconds
         });
         if (item.callback) {
           item.callback();
