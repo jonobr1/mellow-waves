@@ -277,15 +277,23 @@
 
         function resize() {
 
+          var aspect = two.width / two.height;
+
           ring._radius = Math.min(two.width, two.height) / 3;
           ring.linewidth = ring.radius / 100;
           ring.visible = true;
 
           two.scene.translation.set(two.width / 2, two.height / 2);
 
+          var margin = two.width * 0.01;
+          var width = two.width - margin;
+          var height = two.height - margin;
+
           for (var i = 0; i < buttons.length; i++) {
+
             var xpct = 1 / buttons[i].length;
             var ypct = 1 / buttons.length;
+
             for (var j = 0; j < buttons[i].length; j++) {
 
               var button = buttons[i][j];
@@ -293,14 +301,14 @@
               var y = (i + 0.5) / buttons.length;
 
               x -= 0.5;
-              x *= two.width;
+              x *= width;
 
               y -= 0.5;
-              y *= two.height;
+              y *= height;
 
               button.translation.set(x, y);
-              button.width = xpct * two.width;
-              button.height = ypct * two.height;
+              button.width = xpct * width - margin;
+              button.height = ypct * height - margin;
 
             }
           }
@@ -325,8 +333,9 @@
             'f', 'g', 'h', 'j', 'k', 'l', 'z', 'x', 'c', 'v', 'b', 'n', 'm'
           ];
           var sound = sounds[keys[toKey[id]]];
-          var button = two.makeRectangle(0, 0, 0, 0);
+          var button = two.makeRoundedRectangle(0, 0, 0, 0, 12);
 
+          button.linewidth = 2;
           button.stroke = 'white';
           button.fill = 'rgba(255, 255, 255, 0.33)';
           button.opacity = 0;
