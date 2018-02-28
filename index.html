@@ -13,6 +13,7 @@
         padding: 0;
       }
       body {
+        background: black;
         overflow: hidden;
       }
       div.equalizer {
@@ -37,7 +38,7 @@
       <script src="./third-party/equalizer.js"></script>
       <script src="./src/sequencer.js"></script>
       <script src="./src/gpgpu.js"></script>
-      <script src="./src/simulation-shader.js"></script>
+      <script src="./src/simulation.js"></script>
       <script>
 
         var TWO_PI = Math.PI * 2;
@@ -69,8 +70,8 @@
         sounds.ready = false;
 
         var equalizer, resolution = 11;
-        var size = 512;
-        Two.Resolution = 128;
+        var size = 256;
+        // Two.Resolution = 64;
 
         var two = new Two({
           type: Two.Types.canvas,
@@ -78,6 +79,7 @@
         });
 
         var sequencer = new Sequencer(Sound.ctx);
+        var loader = new THREE.TextureLoader();
 
         var ring = two.makeCircle(0, 0, Math.min(two.width, two.height) / 3);
         ring.stroke = 'white';
@@ -97,7 +99,8 @@
         camera.frustumSize = 100;
 
         var gpgpu = new GPGPU(renderer);
-        var simulation = new GPGPU.SimulationShader();
+        var simulation = new GPGPU.Simulation()
+          .setRadius( camera.frustumSize / 4 );
 
         var origins = {
           data: new Float32Array(size * size * 3)
@@ -105,13 +108,9 @@
 
         for (var i = 0, l = origins.data.length; i < l; i += 3) {
 
-          var j = Math.floor(Math.random() * ring.vertices.length);
-          var point = ring.vertices[j];
-          var amp = camera.frustumSize / 3;
-
-          origins.data[i + 0] = amp * point.x / ring.radius;
-          origins.data[i + 1] = amp * point.y / ring.radius;
-          origins.data[i + 2] = 0;
+          origins.data[i + 0] = Math.random();
+          origins.data[i + 1] = Math.random() + 0.1;
+          origins.data[i + 2] = 0.1 * Math.random();
 
         }
 
@@ -144,8 +143,8 @@
         var positions = new Float32Array(size * size * 3);
 
         for (var i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3) {
-          positions[j + 0] = (camera.frustumSize / 3) * ((i % size) / size);
-          positions[j + 1] = (camera.frustumSize / 3) * (Math.floor(i / size) / size);
+          positions[j + 0] = (i % size) / size;
+          positions[j + 1] = Math.floor(i / size) / size;
         }
 
         var geometry = new THREE.BufferGeometry();
@@ -153,37 +152,72 @@
 
         var material = new THREE.ShaderMaterial({
           uniforms: {
+            glow: {
+              type: 't',
+              value: loader.load('./images/glow.jpg')
+            },
+            uvTransform: {
+              type: 'm3',
+              value: new THREE.Matrix3().set(0, 0, 1, 1, 0, 0, 0)
+            },
+            fft: {
+              type: 'f',
+              value: 0
+            },
+            rotation: {
+              type: 'f',
+              value: 0
+            },
             map: {
               type: 't',
               value: renderTargets.a.texture
             },
-            size: {
+            radius: {
               type: 'f',
-              value: size
+              value: camera.frustumSize / 4
             }
           },
           vertexShader: [
 
+            'const float PI = ' + Math.PI + ';',
+
             'uniform sampler2D map;',
-            'uniform float size;',
+            'uniform float fft;',
+            'uniform float rotation;',
+            'uniform float radius;',
+
             'varying float opacity;',
+            'varying vec2 vUv;',
 
             'void main() {',
-              'vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );',
-              'vec4 data = texture2D( map, uv );',
-              'vec3 vPosition = data.xyz;',
+
+              'vec4 data = texture2D( map, position.xy );',
+              'vec3 vPosition = vec3( data.xy, 0.0 );',
+              'float theta = rotation;',
+              'vec2 expand = vec2( radius * cos( theta ), radius * sin( theta ) );',
+
+              'vUv = uv;',
               'opacity = data.w;',
-              'gl_PointSize = 1.0;',
+
+              'float dist = distance( expand, data.xy );',
+              'float t = smoothstep( 0.0, radius, dist );',
+              'gl_PointSize = mix( 5.0 * data.z, 1.0 * data.z, t );',
               'gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );',
+
             '}'
 
           ].join('\n'),
           fragmentShader: [
 
+            'uniform mat3 uvTransform;',
+            'uniform sampler2D glow;',
+
             'varying float opacity;',
 
             'void main() {',
-              'gl_FragColor = vec4( 1.0, 1.0, 1.0, opacity );',
+              'vec2 uv = ( uvTransform * vec3( gl_PointCoord.x, 1.0 - gl_PointCoord.y, 1.0 ) ).xy;',
+              'vec4 texel = texture2D( glow, uv );',
+              'gl_FragColor = vec4( texel.rgb, opacity );',
             '}'
 
           ].join('\n'),
@@ -316,29 +350,31 @@
 
           ring.rotation += ring.velocity * ring.direction;
 
-          var rotation = ring._rotation;
-          var frustumSize = camera.frustumSize / 3;
+          simulation
+            .setFFT(fft)
+            .setRotation(ring.rotation);
+
+          material.uniforms.fft.value = fft;
+          material.uniforms.rotation.value -= (fft * Math.PI / 20) * ring.direction;
 
           for (var i = 0; i < length; i++) {
 
-            var pct = i / (length - 1);
-            var sid = Math.floor(pct * resolution);
+            if (ring.visible) {
 
-            var anchor = ring.vertices[i];
-            var band = equalizer.bands[sid].value / 256;
+              var pct = i / (length - 1);
+              var anchor = ring.vertices[i];
 
-            var theta = pct * TWO_PI;
-            var phase = Math.sin(pct * TWO_PI * phi);
-            var amp = radius * (1 + phase * magnitude * fft);
-            var x = amp * Math.cos(theta);
-            var y = amp * Math.sin(theta);
+              var theta = pct * TWO_PI;
+              var phase = Math.sin(pct * TWO_PI * phi);
+              var amp = radius * (1 + phase * magnitude * fft);
 
-            anchor.x = x;
-            anchor.y = y;
+              var x = amp * Math.cos(theta);
+              var y = amp * Math.sin(theta);
 
-            // origins.data[i * 3 + 0] = frustumSize * x * Math.cos(rotation) / radius;
-            // origins.data[i * 3 + 1] = frustumSize * y * Math.sin(rotation) / radius;
-            // origins.data[i * 3 + 2] = 0;
+              anchor.x = x;
+              anchor.y = y;
+
+            }
 
             var button = buttons.list[i];
             if (!button) {
@@ -382,7 +418,7 @@
 
           ring._radius = Math.min(two.width, two.height) / 3;
           ring.linewidth = ring.radius / 100;
-          ring.visible = true;
+          ring.visible = false;
 
           two.scene.translation.set(two.width / 2, two.height / 2);
 
@@ -417,11 +453,17 @@
         }
 
         function trigger(sound, callback) {
+
           sequencer.add(sound, sound.frequency, callback);
+
           ring.phi = sound.phi;
           ring.direction = sound.direction;
           ring.magnitude = sound.magnitude;
           ring.velocity = sound.velocity;
+
+          simulation.setPhi(ring.phi);
+          simulation.setMagnitude(ring.magnitude);
+
         }
 
         function createButton(col, row, id) {
