@@ -5,10 +5,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
 
+    <title>Mellow Waves</title>
+
     <style>
       * {
         margin: 0;
         padding: 0;
+      }
+      body {
+        overflow: hidden;
       }
       div.equalizer {
         position: absolute;
@@ -18,7 +23,7 @@
         background: white;
       }
       canvas {
-        background: black;
+        display: block;
         cursor: border;
       }
     </style>
@@ -31,9 +36,12 @@
       <script src="./third-party/sound.js"></script>
       <script src="./third-party/equalizer.js"></script>
       <script src="./src/sequencer.js"></script>
+      <script src="./src/gpgpu.js"></script>
+      <script src="./src/simulation-shader.js"></script>
       <script>
 
         var TWO_PI = Math.PI * 2;
+        var frameCount = 0;
 
         var urls = [
           'M01_1.mp3', 'M02_1.mp3', 'M03_1.mp3', 'M04_1.mp3', 'M05_1.mp3',
@@ -61,13 +69,13 @@
         sounds.ready = false;
 
         var equalizer, resolution = 11;
-        Two.Resolution = 512;
+        var size = 512;
+        Two.Resolution = 128;
 
         var two = new Two({
           type: Two.Types.canvas,
-          fullscreen: true,
-          autostart: true
-        }).appendTo(document.body);
+          fullscreen: true
+        });
 
         var sequencer = new Sequencer(Sound.ctx);
 
@@ -81,6 +89,110 @@
         ring.direction = 1;
         ring.magnitude = 0.3;
         ring.velocity = 0;
+
+        var renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
+        var scene = new THREE.Scene();
+        var camera = new THREE.OrthographicCamera();
+        camera.position.z = 1;
+        camera.frustumSize = 100;
+
+        var gpgpu = new GPGPU(renderer);
+        var simulation = new GPGPU.SimulationShader();
+
+        var origins = {
+          data: new Float32Array(size * size * 3)
+        };
+
+        for (var i = 0, l = origins.data.length; i < l; i += 3) {
+
+          var j = Math.floor(Math.random() * ring.vertices.length);
+          var point = ring.vertices[j];
+          var amp = camera.frustumSize / 3;
+
+          origins.data[i + 0] = amp * point.x / ring.radius;
+          origins.data[i + 1] = amp * point.y / ring.radius;
+          origins.data[i + 2] = 0;
+
+        }
+
+        origins.texture = new THREE.DataTexture(origins.data, size, size, THREE.RGBFormat, THREE.FloatType);
+        origins.texture.minFilter = THREE.NearestFilter;
+        origins.texture.magFilter = THREE.NearestFilter;
+        origins.texture.needsUpdate = true;
+
+        simulation.setOriginsTexture(origins.texture);
+
+        var renderTargets = {
+          a: new THREE.WebGLRenderTarget(size, size, {
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat,
+            type: THREE.FloatType,
+            depthBuffer: false,
+            stencilBuffer: false
+          }),
+          b: new THREE.WebGLRenderTarget(size, size, {
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat,
+            type: THREE.FloatType,
+            depthBuffer: false,
+            stencilBuffer: false
+          })
+        };
+
+        var positions = new Float32Array(size * size * 3);
+
+        for (var i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3) {
+          positions[j + 0] = (camera.frustumSize / 3) * ((i % size) / size);
+          positions[j + 1] = (camera.frustumSize / 3) * (Math.floor(i / size) / size);
+        }
+
+        var geometry = new THREE.BufferGeometry();
+        geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        var material = new THREE.ShaderMaterial({
+          uniforms: {
+            map: {
+              type: 't',
+              value: renderTargets.a.texture
+            },
+            size: {
+              type: 'f',
+              value: size
+            }
+          },
+          vertexShader: [
+
+            'uniform sampler2D map;',
+            'uniform float size;',
+            'varying float opacity;',
+
+            'void main() {',
+              'vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );',
+              'vec4 data = texture2D( map, uv );',
+              'vec3 vPosition = data.xyz;',
+              'opacity = data.w;',
+              'gl_PointSize = 1.0;',
+              'gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );',
+            '}'
+
+          ].join('\n'),
+          fragmentShader: [
+
+            'varying float opacity;',
+
+            'void main() {',
+              'gl_FragColor = vec4( 1.0, 1.0, 1.0, opacity );',
+            '}'
+
+          ].join('\n'),
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          transparent: true
+        });
+        var points = new THREE.Points(geometry, material);
+        scene.add(points);
 
         var buttons = [
           new Array(10),
@@ -123,6 +235,11 @@
 
         function setup() {
 
+          renderer.setClearColor(0x000000);
+
+          document.body.appendChild(renderer.domElement);
+          two.appendTo(document.body);
+
           equalizer = new Equalizer();//.appendTo(document.body);
 
           setupMouseEvents();
@@ -160,8 +277,30 @@
             }
           }, false);
 
-          two.bind('update', update);
+          loop();
           sequencer.start();
+
+        }
+
+        function loop() {
+
+          update();
+
+          simulation.setTimer(Sound.ctx.currentTime);
+
+          if (frameCount % 2 === 0) {
+            gpgpu.pass(simulation.setPositionsTexture(renderTargets.a), renderTargets.b);
+            material.uniforms.map.value = renderTargets.b.texture;
+          } else {
+            gpgpu.pass(simulation.setPositionsTexture(renderTargets.b), renderTargets.a);
+            material.uniforms.map.value = renderTargets.a.texture;
+          }
+          frameCount++;
+
+          renderer.render(scene, camera);
+          two.update();
+
+          requestAnimationFrame(loop);
 
         }
 
@@ -174,6 +313,11 @@
           var phi = ring.phi;
           var fft = equalizer.average.value / 256;
           var magnitude = ring.magnitude;
+
+          ring.rotation += ring.velocity * ring.direction;
+
+          var rotation = ring._rotation;
+          var frustumSize = camera.frustumSize / 3;
 
           for (var i = 0; i < length; i++) {
 
@@ -191,6 +335,10 @@
 
             anchor.x = x;
             anchor.y = y;
+
+            // origins.data[i * 3 + 0] = frustumSize * x * Math.cos(rotation) / radius;
+            // origins.data[i * 3 + 1] = frustumSize * y * Math.sin(rotation) / radius;
+            // origins.data[i * 3 + 2] = 0;
 
             var button = buttons.list[i];
             if (!button) {
@@ -215,13 +363,22 @@
 
           }
 
-          ring.rotation += ring.velocity * ring.direction;
+          origins.texture.needsUpdate = true;
 
         }
 
         function resize() {
 
           var aspect = two.width / two.height;
+          var frustumSize = camera.frustumSize;
+
+          renderer.setSize(two.width, two.height);
+
+          camera.top = frustumSize / 2;
+          camera.left = - frustumSize * aspect / 2;
+          camera.right = frustumSize * aspect / 2;
+          camera.bottom = - frustumSize / 2;
+          camera.updateProjectionMatrix();
 
           ring._radius = Math.min(two.width, two.height) / 3;
           ring.linewidth = ring.radius / 100;
@@ -260,9 +417,6 @@
         }
 
         function trigger(sound, callback) {
-          // TODO: is there a way to have a callback to change
-          // the fill of a button when the sound repeats? And then
-          // make it fade relative to the sound.frequency?
           sequencer.add(sound, sound.frequency, callback);
           ring.phi = sound.phi;
           ring.direction = sound.direction;
