@@ -94,7 +94,6 @@
         ring.velocity = 0;
 
         var logo = two.makeSprite('./images/cornelius-logo.png', 0, 0);
-        logo.scale = 0.75;
 
         var renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
         var scene = new THREE.Scene();
@@ -422,6 +421,8 @@
           ring._radius = Math.min(two.width, two.height) / 6;
           ring.linewidth = ring.radius / 25;
           // ring.visible = true;
+
+          logo.scale = 0.66 * ((logo.width || 360) / two.width);
 
           two.scene.translation.set(two.width / 2, two.height / 2);
 
