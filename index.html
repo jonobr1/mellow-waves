@@ -354,8 +354,9 @@
           var phi = ring.phi;
           var fft = equalizer.average.value / 256;
           var magnitude = ring.magnitude;
+          var rStep = ring.velocity * ring.direction;
 
-          ring.rotation += ring.velocity * ring.direction;
+          ring.rotation += rStep / (50 * Math.sqrt( phi / 30 ));
 
           simulation
             .setFFT(fft)
