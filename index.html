@@ -269,6 +269,7 @@
           sounds.index++;
           if (sounds.index >= sounds.length && !sounds.ready) {
             sounds.ready = true;
+            sounds[0].gain.gain.value = 1.5;
             setup();
           }
         }
