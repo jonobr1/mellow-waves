@@ -422,7 +422,8 @@
           ring.linewidth = ring.radius / 25;
           // ring.visible = true;
 
-          logo.scale = 0.66 * ((logo.width || 360) / two.width);
+          var logoAspect = 108 / 780;
+          logo.scale = 0.75 * two.height / 780;
 
           two.scene.translation.set(two.width / 2, two.height / 2);
 
