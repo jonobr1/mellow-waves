@@ -70,8 +70,8 @@
         sounds.ready = false;
 
         var equalizer, resolution = 11;
-        var size = 256;
-        // Two.Resolution = 64;
+        var size = 512;
+        Two.Resolution = 32;
 
         var two = new Two({
           type: Two.Types.canvas,
@@ -92,11 +92,15 @@
         ring.magnitude = 0.3;
         ring.velocity = 0;
 
+        var logo = two.makeSprite('./images/cornelius-logo.png', 0, 0);
+        logo.scale = 0.75;
+
         var renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
         var scene = new THREE.Scene();
-        var camera = new THREE.OrthographicCamera();
-        camera.position.z = 1;
+        var camera = new THREE.PerspectiveCamera(60);
         camera.frustumSize = 100;
+        camera.position.z = camera.frustumSize;
+        renderer.setPixelRatio(1);
 
         var gpgpu = new GPGPU(renderer);
         var simulation = new GPGPU.Simulation()
@@ -109,8 +113,8 @@
         for (var i = 0, l = origins.data.length; i < l; i += 3) {
 
           origins.data[i + 0] = Math.random();
-          origins.data[i + 1] = Math.random() + 0.1;
-          origins.data[i + 2] = 0.1 * Math.random();
+          origins.data[i + 1] = Math.random() * 0.05 - 0.025;
+          origins.data[i + 2] = 0.01 * Math.random();//Math.floor(10 * Math.random() ) / 10;
 
         }
 
@@ -192,16 +196,17 @@
             'void main() {',
 
               'vec4 data = texture2D( map, position.xy );',
-              'vec3 vPosition = vec3( data.xy, 0.0 );',
+              'vec3 vPosition = vec3( data.xyz );',
               'float theta = rotation;',
-              'vec2 expand = vec2( radius * cos( theta ), radius * sin( theta ) );',
+              'vec3 expand = vec3( radius * cos( theta ), radius * sin( theta ), 0.0 );',
+
+              'float dist = distance( expand, vPosition );',
+              'float t = smoothstep( 0.0, radius * 2.0, dist );',
+              'gl_PointSize = 1.0;',
 
               'vUv = uv;',
-              'opacity = data.w;',
+              'opacity = mix( data.w, data.w * 0.5, t );',
 
-              'float dist = distance( expand, data.xy );',
-              'float t = smoothstep( 0.0, radius, dist );',
-              'gl_PointSize = mix( 5.0 * data.z, 1.0 * data.z, t );',
               'gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );',
 
             '}'
@@ -399,8 +404,6 @@
 
           }
 
-          origins.texture.needsUpdate = true;
-
         }
 
         function resize() {
@@ -410,21 +413,18 @@
 
           renderer.setSize(two.width, two.height);
 
-          camera.top = frustumSize / 2;
-          camera.left = - frustumSize * aspect / 2;
-          camera.right = frustumSize * aspect / 2;
-          camera.bottom = - frustumSize / 2;
+          camera.aspect = aspect;
           camera.updateProjectionMatrix();
 
-          ring._radius = Math.min(two.width, two.height) / 3;
-          ring.linewidth = ring.radius / 100;
-          ring.visible = false;
+          ring._radius = Math.min(two.width, two.height) / 6;
+          ring.linewidth = ring.radius / 25;
+          // ring.visible = true;
 
           two.scene.translation.set(two.width / 2, two.height / 2);
 
           var margin = two.width * 0.01;
-          var width = two.width - margin;
-          var height = two.height - margin;
+          var width = two.width - margin * 2;
+          var height = two.height - margin * 2;
 
           for (var i = 0; i < buttons.length; i++) {
 

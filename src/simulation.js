@@ -58,28 +58,28 @@ GPGPU.Simulation = function () {
         'float t = info.z;',
         'float theta = pct * TWO_PI;',
         'float phase = sin( theta * phi );',
-        'float amp = radius * ( 1.0 + phase * magnitude * fft );',
+        'float r = radius * ( 1.0 - info.y );',
+        'float amp = r * ( 1.0 + phase * magnitude * fft );',
 
         'vec4 pos = texture2D( tPositions, vUv );',
 
-        'if ( pos.w <= 0.0 ) {',
+        'if ( pos.w <= 0.0 || pos.z >= radius * 4.0 ) {',
 
           'pos.x = amp * cos( theta + rotation );',
           'pos.y = amp * sin( theta + rotation );',
-          'pos.z = info.y;',
+          'pos.z = radius * fft * 2.0;',
 
-          'pos.w = 1.0;',
+          'pos.w = 2.0 * ( fft + 0.1 ) * ( 1.0 - info.y );',
 
         '} else {',
 
-          // 'float behavior = step( radius, length( pos.xy ) );',
-          // 'theta = mix( theta, atan( pos.y, pos.x ), behavior );',
-          'theta = atan( pos.y, pos.x );',
-          'amp = stepSize * ( 50.0 * pow( fft, 0.5 ) + 1.0 );',
+          'float disperse = 25.0 * stepSize * info.y;',
+          'amp = stepSize * ( 25.0 * pow( fft, 0.0625 ) + 1.0 );',
 
-          'pos.x = amp * cos( theta ) + pos.x;',
-          'pos.y = amp * sin( theta ) + pos.y;',
-          'pos.w -= t;',//' * ( 100.0 * pow( fft, 3.0 ) + 1.0 );',
+          'pos.x = disperse * cos( theta ) + pos.x;',
+          'pos.y = disperse * sin( theta ) + pos.y;',
+          'pos.z += amp;',
+          'pos.w -= t;',
 
         '}',
 
