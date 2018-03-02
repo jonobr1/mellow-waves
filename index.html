@@ -9,6 +9,7 @@
     <title>Mellow Waves</title>
 
     <style>
+
       * {
         margin: 0;
         padding: 0;
@@ -16,6 +17,7 @@
       body {
         background: black;
         overflow: hidden;
+        cursor: pointer;
       }
       div.equalizer {
         position: absolute;
@@ -28,10 +30,24 @@
         display: block;
         cursor: border;
       }
+      .scripts {
+        display: none;
+      }
+
     </style>
+
+    <link href="https://fonts.googleapis.com/css?family=Lora|Work+Sans:300" rel="stylesheet">
 
   </head>
   <body>
+    <!-- <div id="buy-links">
+      <a href="https://fanlink.to/CorneliusMellowWaves" target="_blank">
+        Digital
+      </a>
+      <a href="https://www.amazon.com/Mellow-Waves-Black-White-Limited/dp/B0775J13H2" target="_blank">
+        Physical
+      </a>
+    </div> -->
     <div class="scripts">
       <script src="./third-party/three.js"></script>
       <script src="./third-party/two.js"></script>
@@ -94,6 +110,30 @@
         ring.velocity = 0;
 
         var logo = two.makeSprite('./images/cornelius-logo.png', 0, 0);
+        var textStyles = {
+          stroke: 'none',
+          fill: '#fff',
+          size: '13px',
+          family: '"Work Sans", "Lora", sans-serif',
+          weight: 300,
+          opacity: 0.66
+        };
+        var buy = {
+          physical: two.makeText('P h y s i c a l      A l b u m'.toUpperCase(), 0, 0, textStyles),
+          digital: two.makeText('D i g i t a l      A l b u m'.toUpperCase(), 0, 0, textStyles)
+        };
+
+        var shouldBuy = false;
+
+        buy.physical.link = 'https://www.amazon.com/Mellow-Waves-Black-White-Limited/dp/B0775J13H2';
+        buy.digital.link = 'https://fanlink.to/CorneliusMellowWaves';
+
+        buy.physical.onClick = function() {
+          window.location.href = buy.physical.link;
+        };
+        buy.digital.onClick = function() {
+          window.location.href = buy.digital.link;
+        };
 
         var renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
         var scene = new THREE.Scene();
@@ -413,6 +453,10 @@
           var aspect = two.width / two.height;
           var frustumSize = camera.frustumSize;
 
+          var margin = two.width * 0.01;
+          var width = two.width - margin * 8;
+          var height = two.height - margin * 2;
+
           renderer.setSize(two.width, two.height);
 
           camera.aspect = aspect;
@@ -422,14 +466,15 @@
           ring.linewidth = ring.radius / 25;
           // ring.visible = true;
 
+          buy.physical.translation.x = - (width + margin * 4) / 2;
+          buy.physical.rotation = - Math.PI / 2;
+          buy.digital.translation.x = (width + margin * 4) / 2;
+          buy.digital.rotation = Math.PI / 2;
+
           var logoAspect = 108 / 780;
           logo.scale = 0.75 * two.height / 780;
 
           two.scene.translation.set(two.width / 2, two.height / 2);
-
-          var margin = two.width * 0.01;
-          var width = two.width - margin * 2;
-          var height = two.height - margin * 2;
 
           for (var i = 0; i < buttons.length; i++) {
 
@@ -497,6 +542,7 @@
 
           var triggerButton = function(cursor, button) {
 
+            shouldBuy = false;
             cursor.button.pressed = true;
             button.opacity = 1;
             button.fillOpacity = 1;
@@ -507,19 +553,25 @@
           };
           var touchstart = function(e) {
 
+            var margin = two.width * 0.01;
+            var width = two.width - margin * 8;
+            var height = two.height - margin * 2;
+
+            shouldBuy = true;
+
             var touches = e.touches;
             for (var i = 0; i < touches.length; i++) {
 
               var touch = touches[i];
               if (!(touch.identifier in cursors)) {
                 cursors[touch.identifier] = new Two.Vector(
-                  touch.clientX / two.width,
-                  touch.clientY / two.height
+                  (touch.clientX - margin * 4) / width,
+                  (touch.clientY - margin) / height
                 );
               } else {
                 cursors[touch.identifier].set(
-                  touch.clientX / two.width,
-                  touch.clientY / two.height
+                  (touch.clientX - margin * 4) / width,
+                  (touch.clientY - margin) / height
                 );
               }
 
@@ -540,19 +592,23 @@
           };
           var touchmove = function(e) {
 
+            var margin = two.width * 0.01;
+            var width = two.width - margin * 8;
+            var height = two.height - margin * 2;
+
             var touches = e.touches;
             for (var i = 0; i < touches.length; i++) {
 
               var touch = touches[i];
               if (!(touch.identifier in cursors)) {
                 cursors[touch.identifier] = new Two.Vector(
-                  touch.clientX / two.width,
-                  touch.clientY / two.height
+                  (touch.clientX - margin * 4) / width,
+                  (touch.clientY - margin) / height
                 );
               } else {
                 cursors[touch.identifier].set(
-                  touch.clientX / two.width,
-                  touch.clientY / two.height
+                  (touch.clientX - margin * 4) / width,
+                  (touch.clientY - margin) / height
                 );
               }
 
@@ -602,10 +658,41 @@
 
         function setupMouseEvents() {
 
+          window.addEventListener('click', function(e) {
+
+            var margin = two.width * 0.01;
+            var width = two.width - margin * 8;
+            var height = two.height - margin * 2;
+            var x = e.clientX;
+            var y = e.clientY;
+
+            if (!shouldBuy) {
+              return;
+            }
+
+            for (var type in buy) {
+
+              var button = buy[type];
+
+              var bx = button.translation.x + two.scene.translation.x;
+              var by = button.translation.y + two.scene.translation.y;
+
+              var dx = Math.abs(bx - x);
+              var dy = Math.abs(by - y);
+
+              if (dx < 2 * margin && dy < 10 * margin) {
+                button.onClick();
+                break;
+              }
+            }
+
+          });
+
           var mouse = new Two.Vector();
 
           var triggerButton = function(button) {
 
+            shouldBuy = false;
             mouse.button.pressed = true;
 
             button.opacity = 1;
@@ -618,7 +705,15 @@
           };
           var mousedown = function(e) {
 
-            mouse.set(e.clientX / two.width, e.clientY / two.height);
+            var margin = two.width * 0.01;
+            var width = two.width - margin * 8;
+            var height = two.height - margin * 2;
+
+            shouldBuy = true;
+            mouse.set(
+              (e.clientX - margin * 4) / width,
+              (e.clientY - margin) / height
+            );
 
             window.addEventListener('mousemove', mousemove, false);
             window.addEventListener('mouseup', mouseup, false);
@@ -636,7 +731,14 @@
           };
           var mousemove = function(e) {
 
-            mouse.set(e.clientX / two.width, e.clientY / two.height);
+            var margin = two.width * 0.01;
+            var width = two.width - margin * 8;
+            var height = two.height - margin * 2;
+
+            mouse.set(
+              (e.clientX - margin * 4) / width,
+              (e.clientY - margin) / height
+            );
 
             var row = Math.floor(buttons.length * mouse.y);
             if (row >= 0 && row < buttons.length) {
@@ -686,6 +788,16 @@
         }
 
       </script>
+
+      <!-- Global site tag (gtag.js) - Google Analytics -->
+      <script async src="https://www.googletagmanager.com/gtag/js?id=UA-115002525-1"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'UA-115002525-1');
+      </script>
+
     </div>
   </body>
 </html>
