@@ -110,6 +110,12 @@
         ring.velocity = 0;
 
         var logo = two.makeSprite('./images/cornelius-logo.png', 0, 0);
+        logo.visible = false;
+        logo.opacity = 0;
+        logo.texture.bind(Two.Events.load, function() {
+          logo.visible = true;
+        });
+
         var textStyles = {
           stroke: 'none',
           fill: '#fff',
@@ -403,6 +409,14 @@
 
           material.uniforms.fft.value = fft;
           material.uniforms.rotation.value -= (fft * Math.PI / 20) * ring.direction;
+
+          if (logo.visible) {
+            if (logo.opacity < 0.9999) {
+              logo.opacity += (1 - logo.opacity) * 0.0625;
+            } else if (logo.opacity < 1) {
+              logo.opacity = 1;
+            }
+          }
 
           for (var i = 0; i < length; i++) {
 
