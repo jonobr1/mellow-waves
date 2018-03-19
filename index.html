@@ -43,6 +43,8 @@
         background: black;
         overflow: hidden;
         cursor: pointer;
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
+        -webkit-tap-highlight-color: transparent;
       }
       div.equalizer {
         position: absolute;
@@ -74,13 +76,14 @@
       </a>
     </div> -->
     <div class="scripts">
-      <script src="./third-party/three.js?fdsjkljklfds"></script>
-      <script src="./third-party/two.js?fdsjaklfjlkdsa"></script>
-      <script src="./third-party/sound.js?dfsjlkdsfjkl"></script>
-      <script src="./third-party/equalizer.js?fdsjlkdfsljkfsd"></script>
-      <script src="./src/sequencer.js?fdsjlksdfjlk"></script>
-      <script src="./src/gpgpu.js?fdsjlkfdsjlksdf"></script>
-      <script src="./src/simulation.js?fdsljkfdsjlkdfs"></script>
+      <script src="./third-party/has.js"></script>
+      <script src="./third-party/three.js"></script>
+      <script src="./third-party/two.js"></script>
+      <script src="./third-party/sound.js"></script>
+      <script src="./third-party/equalizer.js"></script>
+      <script src="./src/sequencer.js"></script>
+      <script src="./src/gpgpu.js"></script>
+      <script src="./src/simulation.js"></script>
       <script>
 
         var root = /localhost/.test(window.location) ? './' : '//storage.googleapis.com/cdn.patatap.com/mellow-waves';
@@ -448,7 +451,7 @@
 
             if (ring.visible) {
 
-              var pct = i / (length - 1);
+              var pct = i / (ring.vertices.length - 1);
               var anchor = ring.vertices[i];
 
               var theta = pct * TWO_PI;
@@ -700,6 +703,8 @@
 
           window.addEventListener('click', function(e) {
 
+            e.preventDefault();
+
             var margin = two.width * 0.01;
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
@@ -707,7 +712,7 @@
             var y = e.clientY;
 
             if (!shouldBuy) {
-              return;
+              return false;
             }
 
             for (var type in buy) {
@@ -725,6 +730,8 @@
                 break;
               }
             }
+
+            return false;
 
           });
 
@@ -813,7 +820,9 @@
             delete mouse.button;
           };
 
-          window.addEventListener('mousedown', mousedown, false);
+          if (!has.mobile) {
+            window.addEventListener('mousedown', mousedown, false);
+          }
 
         }
 
