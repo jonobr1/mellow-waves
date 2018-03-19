@@ -6,7 +6,32 @@
     <meta name="viewport" content="width=device-width, user-scalable=no">
     <meta name="theme-color" content="#000">
 
-    <title>Mellow Waves</title>
+    <title>Patatap: Mellow Waves</title>
+
+    <meta name="name" content="Patatap">
+    <meta name="image" content="http://cornelius.patatap.com/images/thumbnail.jpg">
+    <meta name="description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
+
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Patatap">
+    <meta name="twitter:description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
+    <meta name="twitter:creator" content="@jonobr1">
+    <meta name="twitter:image:src" content="http://cornelius.patatap.com/images/thumbnail.jpg">
+
+    <meta itemprop="name" content="Patatap">
+    <meta itemprop="description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
+    <meta itemprop="image" src="http://cornelius.patatap.com/images/thumbnail.jpg">
+
+    <meta property="og:title" content="Patatap">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="http://cornelius.patatap.com">
+    <meta property="og:image" content="http://cornelius.patatap.com/images/thumbnail.jpg"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="Patatap">
+    <meta property="og:description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
+
+    <link rel="icon" href="/images/favicon.ico" />
 
     <style>
 
@@ -49,15 +74,16 @@
       </a>
     </div> -->
     <div class="scripts">
-      <script src="./third-party/three.js"></script>
-      <script src="./third-party/two.js"></script>
-      <script src="./third-party/sound.js"></script>
-      <script src="./third-party/equalizer.js"></script>
-      <script src="./src/sequencer.js"></script>
-      <script src="./src/gpgpu.js"></script>
-      <script src="./src/simulation.js"></script>
+      <script src="./third-party/three.js?fdsjkljklfds"></script>
+      <script src="./third-party/two.js?fdsjaklfjlkdsa"></script>
+      <script src="./third-party/sound.js?dfsjlkdsfjkl"></script>
+      <script src="./third-party/equalizer.js?fdsjlkdfsljkfsd"></script>
+      <script src="./src/sequencer.js?fdsjlksdfjlk"></script>
+      <script src="./src/gpgpu.js?fdsjlkfdsjlksdf"></script>
+      <script src="./src/simulation.js?fdsljkfdsjlkdfs"></script>
       <script>
 
+        var root = /localhost/.test(window.location) ? './' : '//storage.googleapis.com/cdn.patatap.com/mellow-waves';
         var TWO_PI = Math.PI * 2;
         var frameCount = 0;
 
@@ -109,7 +135,7 @@
         ring.magnitude = 0.3;
         ring.velocity = 0;
 
-        var logo = two.makeSprite('./images/cornelius-logo.png', 0, 0);
+        var logo = two.makeSprite(root + '/images/cornelius-logo.png', 0, 0);
         logo.visible = false;
         logo.opacity = 0;
         logo.texture.bind(Two.Events.load, function() {
@@ -204,7 +230,7 @@
           uniforms: {
             glow: {
               type: 't',
-              value: loader.load('./images/glow.jpg')
+              value: loader.load(root + '/images/glow.jpg')
             },
             uvTransform: {
               type: 'm3',
@@ -288,7 +314,7 @@
 
         for (var i = 0; i < urls.length; i++) {
 
-          var url = './assets/sounds/' + urls[i];
+          var url = root + '/assets/sounds/' + urls[i];
           var seed = Math.random();
 
           sounds.push(new Sound(url, loaded));
