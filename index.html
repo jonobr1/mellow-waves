@@ -88,7 +88,6 @@
 
         var equalizer, resolution = 11;
         var size = 512;
-        Two.Resolution = 32;
 
         var two = new Two({
           type: Two.Types.canvas,
@@ -98,16 +97,16 @@
         var sequencer = new Sequencer(Sound.ctx);
         var loader = new THREE.TextureLoader();
 
-        var ring = two.makeCircle(0, 0, Math.min(two.width, two.height) / 3);
+        var ring = two.makePolygon(0, 0, Math.min(two.width, two.height) / 4.6, 512);
         ring.stroke = 'white';
         ring.noFill();
         ring.visible = false;
-        ring.curved = true;
         ring.phi = 2;
         ring.join = 'round';
         ring.direction = 1;
         ring.magnitude = 0.3;
         ring.velocity = 0;
+        ring.radius = Math.min(two.width, two.height) / 4.6;
 
         var logo = two.makeSprite('./images/cornelius-logo.png', 0, 0);
         logo.visible = false;
@@ -141,7 +140,7 @@
           window.location.href = buy.digital.link;
         };
 
-        var renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
+        var renderer = new THREE.WebGLRenderer({ antialias: true, stencil: false });
         var scene = new THREE.Scene();
         var camera = new THREE.PerspectiveCamera(60);
         camera.frustumSize = 100;
@@ -372,18 +371,23 @@
 
           update();
 
-          simulation.setTimer(Sound.ctx.currentTime);
+          if (renderer.context.getExtension('OES_texture_float')) {
 
-          if (frameCount % 2 === 0) {
-            gpgpu.pass(simulation.setPositionsTexture(renderTargets.a), renderTargets.b);
-            material.uniforms.map.value = renderTargets.b.texture;
-          } else {
-            gpgpu.pass(simulation.setPositionsTexture(renderTargets.b), renderTargets.a);
-            material.uniforms.map.value = renderTargets.a.texture;
+            simulation.setTimer(Sound.ctx.currentTime);
+
+            if (frameCount % 2 === 0) {
+              gpgpu.pass(simulation.setPositionsTexture(renderTargets.a), renderTargets.b);
+              material.uniforms.map.value = renderTargets.b.texture;
+            } else {
+              gpgpu.pass(simulation.setPositionsTexture(renderTargets.b), renderTargets.a);
+              material.uniforms.map.value = renderTargets.a.texture;
+            }
+            frameCount++;
+
+            renderer.render(scene, camera);
+
           }
-          frameCount++;
 
-          renderer.render(scene, camera);
           two.update();
 
           requestAnimationFrame(loop);
@@ -394,7 +398,7 @@
 
           equalizer.update(true);
 
-          var length = buttons.list.length;//ring.vertices.length;
+          var length = Math.max(buttons.list.length, ring.vertices.length);
           var radius = ring.radius;
           var phi = ring.phi;
           var fft = equalizer.average.value / 256;
@@ -405,7 +409,7 @@
 
           simulation
             .setFFT(fft)
-            .setRotation(ring.rotation);
+            .setRotation(- ring.rotation);
 
           material.uniforms.fft.value = fft;
           material.uniforms.rotation.value -= (fft * Math.PI / 20) * ring.direction;
@@ -422,18 +426,22 @@
 
             if (ring.visible) {
 
-              var pct = i / (length - 1);
+              var pct = i / (ring.vertices.length - 1);
               var anchor = ring.vertices[i];
 
-              var theta = pct * TWO_PI;
-              var phase = Math.sin(pct * TWO_PI * phi);
-              var amp = radius * (1 + phase * magnitude * fft);
+              if (anchor) {
 
-              var x = amp * Math.cos(theta);
-              var y = amp * Math.sin(theta);
+                var theta = pct * TWO_PI;
+                var phase = Math.sin(pct * TWO_PI * phi);
+                var amp = radius * (1 + phase * magnitude * fft);
 
-              anchor.x = x;
-              anchor.y = y;
+                var x = amp * Math.cos(theta);
+                var y = amp * Math.sin(theta);
+
+                anchor.x = x;
+                anchor.y = y;
+
+              }
 
             }
 
@@ -476,9 +484,10 @@
           camera.aspect = aspect;
           camera.updateProjectionMatrix();
 
-          ring._radius = Math.min(two.width, two.height) / 6;
-          ring.linewidth = ring.radius / 25;
-          // ring.visible = true;
+          ring.radius = Math.min(two.width, two.height) / 4.6;
+          ring.width = ring.height = ring.radius;
+          ring.linewidth = ring.radius / 50;
+          ring.visible = !renderer.context.getExtension('OES_texture_float');
 
           buy.physical.translation.x = - (width + margin * 4) / 2;
           buy.physical.rotation = - Math.PI / 2;

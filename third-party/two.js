@@ -399,7 +399,9 @@ SOFTWARE.
     this.scene = this.renderer.scene;
 
     Two.Instances.push(this);
-    raf.init();
+    if (params.autostart) {
+      raf.init();
+    }
 
   };
 
@@ -488,6 +490,22 @@ SOFTWARE.
           }
         });
 
+      },
+
+      Image: null,
+
+      isHeadless: false,
+
+      /**
+       * Convenience method for defining all the dependencies from
+       * `node-canvas`
+       */
+      shim: function(CanvasModule) {
+        var canvas = new CanvasModule();
+        Two.CanvasRenderer.Utils.shim(canvas);
+        Two.Utils.Image = CanvasModule.Image;
+        Two.Utils.isHeadless = true;
+        return canvas;
       },
 
       /**
@@ -727,6 +745,7 @@ SOFTWARE.
         if (!_.isUndefined(styles.opacity)) {
           styles['stroke-opacity'] = styles.opacity;
           styles['fill-opacity'] = styles.opacity;
+          delete styles.opacity;
         }
 
         // Merge attributes and applied styles (attributes take precedence)
@@ -743,9 +762,11 @@ SOFTWARE.
 
           switch (key) {
             case 'transform':
-              // TODO: Check this out https://github.com/paperjs/paper.js/blob/master/src/svg/SVGImport.js#L313
+              // TODO: Check this out https://github.com/paperjs/paper.js/blob/develop/src/svg/SvgImport.js#L315
               if (value === 'none') break;
-              var m = node.getCTM ? node.getCTM() : null;
+              var m = (node.transform && node.transform.baseVal && node.transform.baseVal.length > 0)
+                ? node.transform.baseVal[0].matrix
+                : (node.getCTM ? node.getCTM() : null);
 
               // Might happen when transform string is empty or not valid.
               if (m === null) break;
@@ -756,12 +777,11 @@ SOFTWARE.
               // elem._matrix.set(m.a, m.b, m.c, m.d, m.e, m.f);
 
               // Option 2: Decompose and infer Two.js related properties.
-              var transforms = Two.Utils.decomposeMatrix(node.getCTM());
+              var transforms = Two.Utils.decomposeMatrix(m);
 
               elem.translation.set(transforms.translateX, transforms.translateY);
               elem.rotation = transforms.rotation;
-              // Warning: Two.js elements only support uniform scalars...
-              elem.scale = transforms.scaleX;
+              elem.scale = new Two.Vector(transforms.scaleX, transforms.scaleY);
 
               var x = parseFloat((styles.x + '').replace('px'));
               var y = parseFloat((styles.y + '').replace('px'));
@@ -774,6 +794,18 @@ SOFTWARE.
               if (y) {
                 elem.translation.y = y;
               }
+
+              break;
+            case 'viewBox':
+
+              // Reverse calculate viewbox from an SVG element
+              // into the Two.js scene.
+              var elements = value.split(/\s/);
+              var s = Math.max(this.width / elements[2], this.height / elements[3]);
+
+              elem.translation.x -= elements[0] * s;
+              elem.translation.y -= elements[1] * s;
+              elem.scale = s;
 
               break;
             case 'visible':
@@ -793,8 +825,11 @@ SOFTWARE.
               break;
             case 'stroke-opacity':
             case 'fill-opacity':
-            case 'opacity':
-              elem.opacity = parseFloat(value);
+              // Only apply styles to rendered shapes
+              // in the scene.
+              if (!(elem instanceof Two.Group)) {
+                elem.opacity = parseFloat(value);
+              }
               break;
             case 'fill':
             case 'stroke':
@@ -923,7 +958,9 @@ SOFTWARE.
                 }
                 break;
               case 'a':
-                // TODO: Handle Ellipses
+                if (items.length > 7) {
+                  bin = 7;
+                }
                 break;
             }
 
@@ -1344,6 +1381,13 @@ SOFTWARE.
 
         rect: function(node) {
 
+          var rx = parseFloat(node.getAttribute('rx'));
+          var ry = parseFloat(node.getAttribute('ry'));
+
+          if (!_.isNaN(rx) || !_.isNaN(ry)) {
+            return Two.Utils.read['rounded-rect'](node);
+          }
+
           var x = parseFloat(node.getAttribute('x')) || 0;
           var y = parseFloat(node.getAttribute('y')) || 0;
           var width = parseFloat(node.getAttribute('width'));
@@ -1353,6 +1397,28 @@ SOFTWARE.
           var h2 = height / 2;
 
           var rect = new Two.Rectangle(x + w2, y + h2, width, height)
+            .noStroke();
+          rect.fill = 'black';
+
+          return Two.Utils.applySvgAttributes.call(this, node, rect);
+
+        },
+
+        'rounded-rect': function(node) {
+
+          var x = parseFloat(node.getAttribute('x')) || 0;
+          var y = parseFloat(node.getAttribute('y')) || 0;
+          var rx = parseFloat(node.getAttribute('rx')) || 0;
+          var ry = parseFloat(node.getAttribute('ry')) || 0;
+
+          var width = parseFloat(node.getAttribute('width'));
+          var height = parseFloat(node.getAttribute('height'));
+
+          var w2 = width / 2;
+          var h2 = height / 2;
+          var radius = new Two.Vector(rx, ry);
+
+          var rect = new Two.RoundedRectangle(x + w2, y + h2, width, height, radius)
             .noStroke();
           rect.fill = 'black';
 
@@ -1538,6 +1604,70 @@ SOFTWARE.
 
       },
 
+      // https://github.com/adobe-webplatform/Snap.svg/blob/master/src/path.js#L856
+      getCurveBoundingBox: function(x0, y0, x1, y1, x2, y2, x3, y3) {
+        var tvalues = [],
+            bounds = [[], []],
+            a, b, c, t, t1, t2, b2ac, sqrtb2ac;
+        for (var i = 0; i < 2; ++i) {
+            if (i == 0) {
+                b = 6 * x0 - 12 * x1 + 6 * x2;
+                a = -3 * x0 + 9 * x1 - 9 * x2 + 3 * x3;
+                c = 3 * x1 - 3 * x0;
+            } else {
+                b = 6 * y0 - 12 * y1 + 6 * y2;
+                a = -3 * y0 + 9 * y1 - 9 * y2 + 3 * y3;
+                c = 3 * y1 - 3 * y0;
+            }
+            if (abs(a) < 1e-12) {
+                if (abs(b) < 1e-12) {
+                    continue;
+                }
+                t = -c / b;
+                if (0 < t && t < 1) {
+                    tvalues.push(t);
+                }
+                continue;
+            }
+            b2ac = b * b - 4 * c * a;
+            sqrtb2ac = Math.sqrt(b2ac);
+            if (b2ac < 0) {
+                continue;
+            }
+            t1 = (-b + sqrtb2ac) / (2 * a);
+            if (0 < t1 && t1 < 1) {
+                tvalues.push(t1);
+            }
+            t2 = (-b - sqrtb2ac) / (2 * a);
+            if (0 < t2 && t2 < 1) {
+                tvalues.push(t2);
+            }
+        }
+
+        var x, y, j = tvalues.length,
+            jlen = j,
+            mt;
+        while (j--) {
+            t = tvalues[j];
+            mt = 1 - t;
+            bounds[0][j] = mt * mt * mt * x0 + 3 * mt * mt * t * x1 + 3 * mt * t * t * x2 + t * t * t * x3;
+            bounds[1][j] = mt * mt * mt * y0 + 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t * t * t * y3;
+        }
+
+        bounds[0][jlen] = x0;
+        bounds[1][jlen] = y0;
+        bounds[0][jlen + 1] = x3;
+        bounds[1][jlen + 1] = y3;
+        bounds[0].length = bounds[1].length = jlen + 2;
+
+
+        return {
+          min: { x: Math.min.apply(0, bounds[0]), y: Math.min.apply(0, bounds[1]) },
+          max: { x: Math.max.apply(0, bounds[0]), y: Math.max.apply(0, bounds[1]) }
+        };
+
+      },
+
       /**
        * Integration for `getCurveLength` calculations. Referenced from
        * Paper.js: https://github.com/paperjs/paper.js/blob/master/src/util/Numerical.js#L101
@@ -1580,13 +1710,7 @@ SOFTWARE.
           var c = points[next];
           getControlPoints(a, b, c);
 
-          b._command = i === 0 ? Two.Commands.move : Two.Commands.curve;
-
-          b.controls.left.x = _.isNumber(b.controls.left.x) ? b.controls.left.x : b.x;
-          b.controls.left.y = _.isNumber(b.controls.left.y) ? b.controls.left.y : b.y;
-
-          b.controls.right.x = _.isNumber(b.controls.right.x) ? b.controls.right.x : b.x;
-          b.controls.right.y = _.isNumber(b.controls.right.y) ? b.controls.right.y : b.y;
+          b.command = i === 0 ? Two.Commands.move : Two.Commands.curve;
 
         }
 
@@ -1606,14 +1730,9 @@ SOFTWARE.
 
         var mid = (a1 + a2) / 2;
 
-        // So we know which angle corresponds to which side.
-
-        b.u = _.isObject(b.controls.left) ? b.controls.left : new Two.Vector(0, 0);
-        b.v = _.isObject(b.controls.right) ? b.controls.right : new Two.Vector(0, 0);
-
         // TODO: Issue 73
         if (d1 < 0.0001 || d2 < 0.0001) {
-          if (!b._relative) {
+          if (_.isBoolean(b.relative) && !b.relative) {
             b.controls.left.copy(b);
             b.controls.right.copy(b);
           }
@@ -1637,7 +1756,7 @@ SOFTWARE.
         b.controls.right.x = cos(mid) * d2;
         b.controls.right.y = sin(mid) * d2;
 
-        if (!b._relative) {
+        if (_.isBoolean(b.relative) && !b.relative) {
           b.controls.left.x += b.x;
           b.controls.left.y += b.y;
           b.controls.right.x += b.x;
@@ -1998,6 +2117,7 @@ SOFTWARE.
     play: function() {
 
       Two.Utils.setPlaying.call(this, true);
+      raf.init();
       return this.trigger(Two.Events.play);
 
     },
@@ -2307,10 +2427,12 @@ SOFTWARE.
      * @param {Object} svgNode - The node to be parsed
      * @param {Boolean} shallow - Don't create a top-most group but
      *                                    append all contents directly
+     * @param {Boolean} add – Return SVG node without adding it to scene
      */
-    interpret: function(svgNode, shallow) {
+    interpret: function(svgNode, shallow, add) {
 
-      var tag = svgNode.tagName.toLowerCase();
+      var tag = svgNode.tagName.toLowerCase(),
+          add = (typeof add !== 'undefined') ? add : true;
 
       if (!(tag in Two.Utils.read)) {
         return null;
@@ -2318,11 +2440,7 @@ SOFTWARE.
 
       var node = Two.Utils.read[tag].call(this, svgNode);
 
-      if (shallow && node instanceof Two.Group) {
-        this.add(node.children);
-      } else {
-        this.add(node);
-      }
+      add !== false && this.add(shallow && node instanceof Two.Group ? node.children : node);
 
       return node;
 
@@ -2392,14 +2510,14 @@ SOFTWARE.
 
   function loop() {
 
-    raf(loop);
-
     for (var i = 0; i < Two.Instances.length; i++) {
       var t = Two.Instances[i];
       if (t.playing) {
         t.update();
       }
     }
+
+    raf(loop);
 
   }
 
@@ -2466,7 +2584,34 @@ SOFTWARE.
 
   _.extend(Vector, {
 
-    zero: new Two.Vector()
+    zero: new Two.Vector(),
+
+    MakeObservable: function(object) {
+
+      /**
+       * Override Backbone bind / on in order to add properly broadcasting.
+       * This allows Two.Vector to not broadcast events unless event listeners
+       * are explicity bound to it.
+       */
+
+      object.bind = object.on = function() {
+
+        if (!this._bound) {
+          this._x = this.x;
+          this._y = this.y;
+          Object.defineProperty(this, 'x', xgs);
+          Object.defineProperty(this, 'y', ygs);
+          _.extend(this, BoundProto);
+          this._bound = true; // Reserved for event initialization check
+        }
+
+        Two.Utils.Events.bind.apply(this, arguments);
+
+        return this;
+
+      };
+
+    }
 
   });
 
@@ -2767,28 +2912,7 @@ SOFTWARE.
     }
   };
 
-  /**
-   * Override Backbone bind / on in order to add properly broadcasting.
-   * This allows Two.Vector to not broadcast events unless event listeners
-   * are explicity bound to it.
-   */
-
-  Two.Vector.prototype.bind = Two.Vector.prototype.on = function() {
-
-    if (!this._bound) {
-      this._x = this.x;
-      this._y = this.y;
-      Object.defineProperty(this, 'x', xgs);
-      Object.defineProperty(this, 'y', ygs);
-      _.extend(this, BoundProto);
-      this._bound = true; // Reserved for event initialization check
-    }
-
-    Two.Utils.Events.bind.apply(this, arguments);
-
-    return this;
-
-  };
+  Vector.MakeObservable(Vector.prototype);
 
 })((typeof global !== 'undefined' ? global : (this || window)).Two);
 
@@ -2841,6 +2965,58 @@ SOFTWARE.
         left: new Two.Vector(0, 0),
         right: new Two.Vector(0, 0)
       };
+    },
+
+    MakeObservable: function(object) {
+
+      Object.defineProperty(object, 'command', {
+
+        enumerable: true,
+
+        get: function() {
+          return this._command;
+        },
+
+        set: function(c) {
+          this._command = c;
+          if (this._command === commands.curve && !_.isObject(this.controls)) {
+            Anchor.AppendCurveProperties(this);
+          }
+          return this.trigger(Two.Events.change);
+        }
+
+      });
+
+      Object.defineProperty(object, 'relative', {
+
+        enumerable: true,
+
+        get: function() {
+          return this._relative;
+        },
+
+        set: function(b) {
+          if (this._relative == b) {
+            return this;
+          }
+          this._relative = !!b;
+          return this.trigger(Two.Events.change);
+        }
+
+      });
+
+      _.extend(object, Two.Vector.prototype, AnchorProto);
+
+      // Make it possible to bind and still have the Anchor specific
+      // inheritance from Two.Vector
+      object.bind = object.on = function() {
+        var bound = this._bound;
+        Two.Vector.prototype.bind.apply(this, arguments);
+        if (!bound) {
+          _.extend(this, AnchorProto);
+        }
+      };
+
     }
 
   });
@@ -2864,6 +3040,30 @@ SOFTWARE.
 
       this.controls.left.unbind(Two.Events.change, this._broadcast);
       this.controls.right.unbind(Two.Events.change, this._broadcast);
+
+      return this;
+
+    },
+
+    copy: function(v) {
+
+      this.x = v.x;
+      this.y = v.y;
+
+      if (_.isString(v.command)) {
+        this.command = v.command;
+      }
+      if (_.isObject(v.controls)) {
+        if (!_.isObject(this.controls)) {
+          Anchor.AppendCurveProperties(this);
+        }
+        // TODO: Do we need to listen here?
+        this.controls.left.copy(v.controls.left);
+        this.controls.right.copy(v.controls.right);
+      }
+      if (_.isBoolean(v.relative)) {
+        this.relative = v.relative;
+      }
 
       return this;
 
@@ -2917,55 +3117,7 @@ SOFTWARE.
 
   };
 
-  Object.defineProperty(Anchor.prototype, 'command', {
-
-    enumerable: true,
-
-    get: function() {
-      return this._command;
-    },
-
-    set: function(c) {
-      this._command = c;
-      if (this._command === commands.curve && !_.isObject(this.controls)) {
-        Anchor.AppendCurveProperties(this);
-      }
-      return this.trigger(Two.Events.change);
-    }
-
-  });
-
-  Object.defineProperty(Anchor.prototype, 'relative', {
-
-    enumerable: true,
-
-    get: function() {
-      return this._relative;
-    },
-
-    set: function(b) {
-      if (this._relative == b) {
-        return this;
-      }
-      this._relative = !!b;
-      return this.trigger(Two.Events.change);
-    }
-
-  });
-
-  _.extend(Anchor.prototype, Two.Vector.prototype, AnchorProto);
-
-  // Make it possible to bind and still have the Anchor specific
-  // inheritance from Two.Vector
-  Two.Anchor.prototype.bind = Two.Anchor.prototype.on = function() {
-    Two.Vector.prototype.bind.apply(this, arguments);
-    _.extend(this, AnchorProto);
-  };
-
-  Two.Anchor.prototype.unbind = Two.Anchor.prototype.off = function() {
-    Two.Vector.prototype.unbind.apply(this, arguments);
-    _.extend(this, AnchorProto);
-  };
+  Anchor.MakeObservable(Two.Anchor.prototype);
 
 })((typeof global !== 'undefined' ? global : (this || window)).Two);
 
@@ -2975,7 +3127,7 @@ SOFTWARE.
    * Constants
    */
   var cos = Math.cos, sin = Math.sin, tan = Math.tan;
-  var _ = Two.Utils;
+  var _ = Two.Utils, fix = _.toFixed;
 
   /**
    * Two.Matrix contains an array of elements that represent
@@ -3001,8 +3153,11 @@ SOFTWARE.
     }
 
     // initialize the elements with default values.
+    this.identity();
 
-    this.identity().set(elements);
+    if (elements.length > 0) {
+      this.set(elements);
+    }
 
   };
 
@@ -3078,7 +3233,15 @@ SOFTWARE.
         elements = _.toArray(arguments);
       }
 
-      _.extend(this.elements, elements);
+      this.elements[0] = elements[0];
+      this.elements[1] = elements[1];
+      this.elements[2] = elements[2];
+      this.elements[3] = elements[3];
+      this.elements[4] = elements[4];
+      this.elements[5] = elements[5];
+      this.elements[6] = elements[6];
+      this.elements[7] = elements[7];
+      this.elements[8] = elements[8];
 
       return this.trigger(Two.Events.change);
 
@@ -3089,9 +3252,17 @@ SOFTWARE.
      */
     identity: function() {
 
-      this.set(Matrix.Identity);
+      this.elements[0] = Matrix.Identity[0];
+      this.elements[1] = Matrix.Identity[1];
+      this.elements[2] = Matrix.Identity[2];
+      this.elements[3] = Matrix.Identity[3];
+      this.elements[4] = Matrix.Identity[4];
+      this.elements[5] = Matrix.Identity[5];
+      this.elements[6] = Matrix.Identity[6];
+      this.elements[7] = Matrix.Identity[7];
+      this.elements[8] = Matrix.Identity[8];
 
-      return this;
+      return this.trigger(Two.Events.change);
 
     },
 
@@ -3106,9 +3277,15 @@ SOFTWARE.
 
       if (l <= 1) {
 
-        _.each(this.elements, function(v, i) {
-          this.elements[i] = v * a;
-        }, this);
+        this.elements[0] *= a;
+        this.elements[1] *= a;
+        this.elements[2] *= a;
+        this.elements[3] *= a;
+        this.elements[4] *= a;
+        this.elements[5] *= a;
+        this.elements[6] *= a;
+        this.elements[7] *= a;
+        this.elements[8] *= a;
 
         return this.trigger(Two.Events.change);
 
@@ -3275,18 +3452,18 @@ SOFTWARE.
      var elements = this.elements;
      var hasOutput = !!output;
 
-     var a = parseFloat(elements[0].toFixed(3));
-     var b = parseFloat(elements[1].toFixed(3));
-     var c = parseFloat(elements[2].toFixed(3));
-     var d = parseFloat(elements[3].toFixed(3));
-     var e = parseFloat(elements[4].toFixed(3));
-     var f = parseFloat(elements[5].toFixed(3));
+     var a = fix(elements[0]);
+     var b = fix(elements[1]);
+     var c = fix(elements[2]);
+     var d = fix(elements[3]);
+     var e = fix(elements[4]);
+     var f = fix(elements[5]);
 
       if (!!fullMatrix) {
 
-        var g = parseFloat(elements[6].toFixed(3));
-        var h = parseFloat(elements[7].toFixed(3));
-        var i = parseFloat(elements[8].toFixed(3));
+        var g = fix(elements[6]);
+        var h = fix(elements[7]);
+        var i = fix(elements[8]);
 
         if (hasOutput) {
           output[0] = a;
@@ -3433,10 +3610,10 @@ SOFTWARE.
 
         // Access x and y directly,
         // bypassing the getter
-        var x = toFixed(b._x);
-        var y = toFixed(b._y);
+        var x = toFixed(b.x);
+        var y = toFixed(b.y);
 
-        switch (b._command) {
+        switch (b.command) {
 
           case Two.Commands.close:
             command = Two.Commands.close;
@@ -3447,7 +3624,7 @@ SOFTWARE.
             ar = (a.controls && a.controls.right) || Two.Vector.zero;
             bl = (b.controls && b.controls.left) || Two.Vector.zero;
 
-            if (a._relative) {
+            if (a.relative) {
               vx = toFixed((ar.x + a.x));
               vy = toFixed((ar.y + a.y));
             } else {
@@ -3455,7 +3632,7 @@ SOFTWARE.
               vy = toFixed(ar.y);
             }
 
-            if (b._relative) {
+            if (b.relative) {
               ux = toFixed((bl.x + b.x));
               uy = toFixed((bl.y + b.y));
             } else {
@@ -3473,7 +3650,7 @@ SOFTWARE.
             break;
 
           default:
-            command = b._command + ' ' + x + ' ' + y;
+            command = b.command + ' ' + x + ' ' + y;
 
         }
 
@@ -3481,7 +3658,7 @@ SOFTWARE.
 
         if (i >= last && closed) {
 
-          if (b._command === Two.Commands.curve) {
+          if (b.command === Two.Commands.curve) {
 
             // Make sure we close to the most previous Two.Commands.move
             c = d;
@@ -3489,7 +3666,7 @@ SOFTWARE.
             br = (b.controls && b.controls.right) || b;
             cl = (c.controls && c.controls.left) || c;
 
-            if (b._relative) {
+            if (b.relative) {
               vx = toFixed((br.x + b.x));
               vy = toFixed((br.y + b.y));
             } else {
@@ -3497,7 +3674,7 @@ SOFTWARE.
               vy = toFixed(br.y);
             }
 
-            if (c._relative) {
+            if (c.relative) {
               ux = toFixed((cl.x + c.x));
               uy = toFixed((cl.y + c.y));
             } else {
@@ -3712,7 +3889,7 @@ SOFTWARE.
         }
 
         if (this._flagVertices) {
-          var vertices = svg.toString(this._vertices, this._closed);
+          var vertices = svg.toString(this._renderer.vertices, this._closed);
           changed.d = vertices;
         }
 
@@ -4286,9 +4463,16 @@ SOFTWARE.
       right: 'end'
     },
 
-    shim: function(elem) {
-      elem.tagName = 'canvas';
+    shim: function(elem, name) {
+      elem.tagName = elem.nodeName = name || 'canvas';
       elem.nodeType = 1;
+      elem.getAttribute = function(prop) {
+        return this[prop];
+      };
+      elem.setAttribute = function(prop, val) {
+        this[prop] = val;
+        return this;
+      };
       return elem;
     },
 
@@ -4376,7 +4560,7 @@ SOFTWARE.
         join = this._join;
         miter = this._miter;
         closed = this._closed;
-        commands = this._vertices; // Commands
+        commands = this._renderer.vertices; // Commands
         length = commands.length;
         last = length - 1;
         defaultMatrix = isDefaultMatrix(matrix);
@@ -4443,10 +4627,10 @@ SOFTWARE.
 
           b = commands[i];
 
-          x = toFixed(b._x);
-          y = toFixed(b._y);
+          x = toFixed(b.x);
+          y = toFixed(b.y);
 
-          switch (b._command) {
+          switch (b.command) {
 
             case Two.Commands.close:
               ctx.closePath();
@@ -4463,16 +4647,16 @@ SOFTWARE.
               bl = (b.controls && b.controls.left) || Two.Vector.zero;
 
               if (a._relative) {
-                vx = (ar.x + toFixed(a._x));
-                vy = (ar.y + toFixed(a._y));
+                vx = (ar.x + toFixed(a.x));
+                vy = (ar.y + toFixed(a.y));
               } else {
                 vx = toFixed(ar.x);
                 vy = toFixed(ar.y);
               }
 
               if (b._relative) {
-                ux = (bl.x + toFixed(b._x));
-                uy = (bl.y + toFixed(b._y));
+                ux = (bl.x + toFixed(b.x));
+                uy = (bl.y + toFixed(b.y));
               } else {
                 ux = toFixed(bl.x);
                 uy = toFixed(bl.y);
@@ -4488,23 +4672,23 @@ SOFTWARE.
                 cl = (c.controls && c.controls.left) || Two.Vector.zero;
 
                 if (b._relative) {
-                  vx = (br.x + toFixed(b._x));
-                  vy = (br.y + toFixed(b._y));
+                  vx = (br.x + toFixed(b.x));
+                  vy = (br.y + toFixed(b.y));
                 } else {
                   vx = toFixed(br.x);
                   vy = toFixed(br.y);
                 }
 
                 if (c._relative) {
-                  ux = (cl.x + toFixed(c._x));
-                  uy = (cl.y + toFixed(c._y));
+                  ux = (cl.x + toFixed(c.x));
+                  uy = (cl.y + toFixed(c.y));
                 } else {
                   ux = toFixed(cl.x);
                   uy = toFixed(cl.y);
                 }
 
-                x = toFixed(c._x);
-                y = toFixed(c._y);
+                x = toFixed(c.x);
+                y = toFixed(c.y);
 
                 ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
 
@@ -5061,7 +5245,7 @@ SOFTWARE.
         var next, prev, a, c, ux, uy, vx, vy, ar, bl, br, cl, x, y;
         var isOffset;
 
-        var commands = elem._vertices;
+        var commands = elem._renderer.vertices;
         var canvas = this.canvas;
         var ctx = this.ctx;
 
@@ -5127,12 +5311,12 @@ SOFTWARE.
         ctx.beginPath();
         for (var i = 0; i < commands.length; i++) {
 
-          b = commands[i];
+          var b = commands[i];
 
-          x = toFixed(b._x);
-          y = toFixed(b._y);
+          x = toFixed(b.x);
+          y = toFixed(b.y);
 
-          switch (b._command) {
+          switch (b.command) {
 
             case Two.Commands.close:
               ctx.closePath();
@@ -5149,16 +5333,16 @@ SOFTWARE.
               bl = (b.controls && b.controls.left) || Two.Vector.zero;
 
               if (a._relative) {
-                vx = toFixed((ar.x + a._x));
-                vy = toFixed((ar.y + a._y));
+                vx = toFixed((ar.x + a.x));
+                vy = toFixed((ar.y + a.y));
               } else {
                 vx = toFixed(ar.x);
                 vy = toFixed(ar.y);
               }
 
               if (b._relative) {
-                ux = toFixed((bl.x + b._x));
-                uy = toFixed((bl.y + b._y));
+                ux = toFixed((bl.x + b.x));
+                uy = toFixed((bl.y + b.y));
               } else {
                 ux = toFixed(bl.x);
                 uy = toFixed(bl.y);
@@ -5174,23 +5358,23 @@ SOFTWARE.
                 cl = (c.controls && c.controls.left) || Two.Vector.zero;
 
                 if (b._relative) {
-                  vx = toFixed((br.x + b._x));
-                  vy = toFixed((br.y + b._y));
+                  vx = toFixed((br.x + b.x));
+                  vy = toFixed((br.y + b.y));
                 } else {
                   vx = toFixed(br.x);
                   vy = toFixed(br.y);
                 }
 
                 if (c._relative) {
-                  ux = toFixed((cl.x + c._x));
-                  uy = toFixed((cl.y + c._y));
+                  ux = toFixed((cl.x + c.x));
+                  uy = toFixed((cl.y + c.y));
                 } else {
                   ux = toFixed(cl.x);
                   uy = toFixed(cl.y);
                 }
 
-                x = toFixed(c._x);
-                y = toFixed(c._y);
+                x = toFixed(c.x);
+                y = toFixed(c.y);
 
                 ctx.bezierCurveTo(vx, vy, ux, uy, x, y);
 
@@ -5377,7 +5561,7 @@ SOFTWARE.
 
           this._renderer.opacity = this._opacity * parent._renderer.opacity;
 
-          webgl.path.getBoundingClientRect(this._vertices, this._linewidth, this._renderer.rect);
+          webgl.path.getBoundingClientRect(this._renderer.vertices, this._linewidth, this._renderer.rect);
           webgl.getTriangles(this._renderer.rect, this._renderer.triangles);
 
           webgl.updateBuffer.call(webgl, gl, this, program);
@@ -6329,6 +6513,7 @@ SOFTWARE.
    */
 
   var min = Math.min, max = Math.max, round = Math.round,
+    ceil = Math.ceil, floor = Math.floor,
     getComputedMatrix = Two.Utils.getComputedMatrix;
 
   var commands = {};
@@ -6349,6 +6534,8 @@ SOFTWARE.
 
     this._renderer.flagFill = _.bind(Path.FlagFill, this);
     this._renderer.flagStroke = _.bind(Path.FlagStroke, this);
+    this._renderer.vertices = [];
+    this._renderer.collection = [];
 
     this._closed = !!closed;
     this._curved = !!curved;
@@ -6369,7 +6556,6 @@ SOFTWARE.
     this.join = 'miter';    // Default of Adobe Illustrator
     this.miter = 4;         // Default of Adobe Illustrator
 
-    this._vertices = [];
     this.vertices = vertices;
 
     // Determines whether or not two.js should calculate curves, lines, and
@@ -6673,7 +6859,7 @@ SOFTWARE.
 
       var clone = new Path(points, this.closed, this.curved, !this.automatic);
 
-      _.each(Two.Path.Properties, function(k) {
+      _.each(Path.Properties, function(k) {
         clone[k] = this[k];
       }, this);
 
@@ -6783,7 +6969,7 @@ SOFTWARE.
      * parameters of the group.
      */
     getBoundingClientRect: function(shallow) {
-      var matrix, border, l, x, y, i, v;
+      var matrix, border, l, x, y, i, v0, c0, c1, v1;
 
       var left = Infinity, right = -Infinity,
           top = Infinity, bottom = -Infinity;
@@ -6794,7 +6980,7 @@ SOFTWARE.
       matrix = !!shallow ? this._matrix : getComputedMatrix(this);
 
       border = this.linewidth / 2;
-      l = this._vertices.length;
+      l = this._renderer.vertices.length;
 
       if (l <= 0) {
         v = matrix.multiply(0, 0, 1);
@@ -6808,17 +6994,61 @@ SOFTWARE.
         };
       }
 
-      for (i = 0; i < l; i++) {
-        v = this._vertices[i];
+      for (i = 1; i < l; i++) {
 
-        x = v.x;
-        y = v.y;
+        v1 = this._renderer.vertices[i];
+        v0 = this._renderer.vertices[i - 1];
 
-        v = matrix.multiply(x, y, 1);
-        top = min(v.y - border, top);
-        left = min(v.x - border, left);
-        right = max(v.x + border, right);
-        bottom = max(v.y + border, bottom);
+        if (v0.controls && v1.controls) {
+
+          if (v0.relative) {
+            c0 = matrix.multiply(
+              v0.controls.right.x + v0.x, v0.controls.right.y + v0.y, 1);
+          } else {
+            c0 = matrix.multiply(
+              v0.controls.right.x, v0.controls.right.y, 1);
+          }
+          v0 = matrix.multiply(v0.x, v0.y, 1);
+
+          if (v1.relative) {
+            c1 = matrix.multiply(
+              v1.controls.left.x + v1.x, v1.controls.left.y + v1.y, 1);
+          } else {
+            c1 = matrix.multiply(
+              v1.controls.left.x, v1.controls.left.y, 1);
+          }
+          v1 = matrix.multiply(v1.x, v1.y, 1);
+
+          var bb = Two.Utils.getCurveBoundingBox(
+            v0.x, v0.y, c0.x, c0.y, c1.x, c1.y, v1.x, v1.y);
+
+          top = min(bb.min.y - border, top);
+          left = min(bb.min.x - border, left);
+          right = max(bb.max.x + border, right);
+          bottom = max(bb.max.y + border, bottom);
+
+        } else {
+
+          if (i <= 1) {
+
+            v0 = matrix.multiply(v0.x, v0.y, 1);
+
+            top = min(v0.y - border, top);
+            left = min(v0.x - border, left);
+            right = max(v0.x + border, right);
+            bottom = max(v0.y + border, bottom);
+
+          }
+
+          v1 = matrix.multiply(v1.x, v1.y, 1);
+
+          top = min(v1.y - border, top);
+          left = min(v1.x - border, left);
+          right = max(v1.x + border, right);
+          bottom = max(v1.y + border, bottom);
+
+        }
+
       }
 
       return {
@@ -6837,7 +7067,8 @@ SOFTWARE.
      * coordinates to that percentage on this Two.Path's curve.
      */
     getPointAt: function(t, obj) {
-      var ia, ib;
+
+      var ia, ib, result;
       var x, x1, x2, x3, x4, y, y1, y2, y3, y4, left, right;
       var target = this.length * Math.min(Math.max(t, 0), 1);
       var length = this.vertices.length;
@@ -6867,6 +7098,8 @@ SOFTWARE.
           target -= sum;
           if (this._lengths[i] !== 0) {
             t = target / this._lengths[i];
+          } else {
+            t = 0;
           }
 
           break;
@@ -6877,10 +7110,14 @@ SOFTWARE.
 
       }
 
-      // console.log(sum, a.command, b.command);
-
       if (_.isNull(a) || _.isNull(b)) {
         return null;
+      }
+
+      if (!a) {
+        return b;
+      } else if (!b) {
+        return a;
       }
 
       right = b.controls && b.controls.right;
@@ -6908,13 +7145,55 @@ SOFTWARE.
       x = Two.Utils.getPointOnCubicBezier(t, x1, x2, x3, x4);
       y = Two.Utils.getPointOnCubicBezier(t, y1, y2, y3, y4);
 
+      // Higher order points for control calculation.
+      var t1x = Two.Utils.lerp(x1, x2, t);
+      var t1y = Two.Utils.lerp(y1, y2, t);
+      var t2x = Two.Utils.lerp(x2, x3, t);
+      var t2y = Two.Utils.lerp(y2, y3, t);
+      var t3x = Two.Utils.lerp(x3, x4, t);
+      var t3y = Two.Utils.lerp(y3, y4, t);
+
+      // Calculate the returned points control points.
+      var brx = Two.Utils.lerp(t1x, t2x, t);
+      var bry = Two.Utils.lerp(t1y, t2y, t);
+      var alx = Two.Utils.lerp(t2x, t3x, t);
+      var aly = Two.Utils.lerp(t2y, t3y, t);
+
       if (_.isObject(obj)) {
+
         obj.x = x;
         obj.y = y;
+
+        if (!_.isObject(obj.controls)) {
+          Two.Anchor.AppendCurveProperties(obj);
+        }
+
+        obj.controls.left.x = brx;
+        obj.controls.left.y = bry;
+        obj.controls.right.x = alx;
+        obj.controls.right.y = aly;
+
+        if (!_.isBoolean(obj.relative) || obj.relative) {
+          obj.controls.left.x -= x;
+          obj.controls.left.y -= y;
+          obj.controls.right.x -= x;
+          obj.controls.right.y -= y;
+        }
+
+        obj.t = t;
+
         return obj;
+
       }
 
-      return new Two.Vector(x, y);
+      result = new Two.Anchor(
+        x, y, brx - x, bry - y, alx - x, aly - y,
+        this._curved ? Two.Commands.curve : Two.Commands.line
+      );
+
+      result.t = t;
+
+      return result;
 
     },
 
@@ -6925,12 +7204,12 @@ SOFTWARE.
     plot: function() {
 
       if (this.curved) {
-        Two.Utils.getCurveFromPoints(this._vertices, this.closed);
+        Two.Utils.getCurveFromPoints(this._collection, this.closed);
         return this;
       }
 
-      for (var i = 0; i < this._vertices.length; i++) {
-        this._vertices[i]._command = i === 0 ? Two.Commands.move : Two.Commands.line;
+      for (var i = 0; i < this._collection.length; i++) {
+        this._collection[i].command = i === 0 ? Two.Commands.move : Two.Commands.line;
       }
 
       return this;
@@ -6996,7 +7275,8 @@ SOFTWARE.
             points.push(new Two.Anchor(a.x, a.y));
           }
 
-          points[points.length - 1].command = closed ? Two.Commands.close : Two.Commands.line;
+          points[points.length - 1].command = closed
+            ? Two.Commands.close : Two.Commands.line;
 
         }
 
@@ -7012,14 +7292,16 @@ SOFTWARE.
 
     },
 
-    _updateLength: function(limit) {
+    _updateLength: function(limit, silent) {
       //TODO: DRYness (function above)
-      this._update();
+      if (!silent) {
+        this._update();
+      }
 
       var length = this.vertices.length;
       var last = length - 1;
       var b = this.vertices[last];
-      var closed = this._closed || this.vertices[last]._command === Two.Commands.close;
+      var closed = false;//this._closed || this.vertices[last]._command === Two.Commands.close;
       var sum = 0;
 
       if (_.isUndefined(this._lengths)) {
@@ -7035,6 +7317,7 @@ SOFTWARE.
         }
 
         this._lengths[i] = getCurveLength(a, b, limit);
+        this._lengths[i] = Two.Utils.toFixed(this._lengths[i]);
         sum += this._lengths[i];
 
         if (i >= last && closed) {
@@ -7042,6 +7325,7 @@ SOFTWARE.
           b = this.vertices[(i + 1) % length];
 
           this._lengths[i + 1] = getCurveLength(a, b, limit);
+          this._lengths[i + 1] = Two.Utils.toFixed(this._lengths[i + 1]);
           sum += this._lengths[i + 1];
 
         }
@@ -7051,6 +7335,7 @@ SOFTWARE.
       }, this);
 
       this._length = sum;
+      this._flagLength = false;
 
       return this;
 
@@ -7060,23 +7345,109 @@ SOFTWARE.
 
       if (this._flagVertices) {
 
-        var l = this.vertices.length;
-        var last = l - 1, v;
-
-        // TODO: Should clamp this so that `ia` and `ib`
-        // cannot select non-verts.
-        var ia = round((this._beginning) * last);
-        var ib = round((this._ending) * last);
-
-        this._vertices.length = 0;
-
-        for (var i = ia; i < ib + 1; i++) {
-          v = this.vertices[i];
-          this._vertices.push(v);
-        }
-
         if (this._automatic) {
           this.plot();
+        }
+
+        if (this._flagLength) {
+          this._updateLength(undefined, true);
+        }
+
+        var l = this._collection.length;
+        var last = l - 1;
+
+        var beginning = Math.min(this._beginning, this._ending);
+        var ending = Math.max(this._beginning, this._ending);
+
+        var bid = getIdByLength(this, beginning * this._length);
+        var eid = getIdByLength(this, ending * this._length);
+
+        var low = ceil(bid);
+        var high = floor(eid);
+
+        var left, right, prev, next, v;
+
+        this._renderer.vertices.length = 0;
+
+        for (var i = 0; i < l; i++) {
+
+          if (this._renderer.collection.length <= i) {
+            // Expected to be `relative` anchor points.
+            this._renderer.collection.push(new Two.Anchor());
+          }
+
+          if (i > high && !right) {
+
+            v = this._renderer.collection[i];
+            v.copy(this._collection[i]);
+            this.getPointAt(ending, v);
+            v.command = this._renderer.collection[i].command;
+            this._renderer.vertices.push(v);
+
+            right = v;
+            prev = this._collection[i - 1];
+
+            // Project control over the percentage `t`
+            // of the in-between point
+            if (prev && prev.controls) {
+
+              v.controls.right.clear();
+
+              this._renderer.collection[i - 1].controls.right
+                .clear()
+                .lerp(prev.controls.right, v.t);
+
+            }
+
+          } else if (i >= low && i <= high) {
+
+            v = this._renderer.collection[i]
+              .copy(this._collection[i]);
+            this._renderer.vertices.push(v);
+
+            if (i === high && contains(this, ending)) {
+              right = v;
+              if (right.controls) {
+                right.controls.right.clear();
+              }
+            } else if (i === low && contains(this, beginning)) {
+              left = v;
+              left.command = Two.Commands.move;
+              if (left.controls) {
+                left.controls.left.clear();
+              }
+            }
+
+          }
+
+        }
+
+        // Prepend the trimmed point if necessary.
+        if (low > 0 && !left) {
+
+          i = low - 1;
+
+          v = this._renderer.collection[i];
+          v.copy(this._collection[i]);
+          this.getPointAt(beginning, v);
+          v.command = Two.Commands.move;
+          this._renderer.vertices.unshift(v);
+
+          left = v;
+          next = this._collection[i + 1];
+
+          // Project control over the percentage `t`
+          // of the in-between point
+          if (next && next.controls) {
+
+            v.controls.left.clear();
+
+            this._renderer.collection[i + 1].controls.left
+              .copy(next.controls.left)
+              .lerp(Two.Vector.zero, v.t);
+
+          }
+
         }
 
       }
@@ -7107,6 +7478,62 @@ SOFTWARE.
   /**
    * Utility functions
    */
+
+  function contains(path, t) {
+
+    if (t === 0 || t === 1) {
+      return true;
+    }
+
+    var length = path._length;
+    var target = length * t;
+    var elapsed = 0;
+
+    for (var i = 0; i < path._lengths.length; i++) {
+      var dist = path._lengths[i];
+      if (elapsed >= target) {
+        return target - elapsed >= 0;
+      }
+      elapsed += dist;
+    }
+
+    return false;
+
+  }
+
+  function getIdByLength(path, dist) {
+
+    var total = path._length;
+
+    if (dist <= 0) {
+      return 0;
+    } else if (dist >= total) {
+      return path._lengths.length - 1;
+    }
+
+    for (var i = 0; i < path._lengths.length; i++) {
+
+      var segment = path._lengths[i];
+      if (dist === segment) {
+        return i;
+      } else if (segment > dist) {
+        var index = i - 1;
+        var offset = dist / segment;
+        if (offset >= 0.99) { // TODO: Create parameterized limits here
+          offset = 1;
+        } else if (offset <= 0.01) {
+          offset = 0;
+        }
+        return index + offset;
+      }
+
+      dist -= segment;
+
+    }
+
+    return - 1;
+
+  }
 
   function getCurveLength(a, b, limit) {
     // TODO: DRYness
@@ -7184,11 +7611,14 @@ SOFTWARE.
     var h2 = height / 2;
 
     Path.call(this, [
-        new Two.Anchor(- w2, - h2),
-        new Two.Anchor(w2, h2)
+        new Two.Anchor(x1, y1),
+        new Two.Anchor(x2, y2)
     ]);
 
-    this.translation.set(x1 + w2, y1 + h2);
+    this.vertices[0].command = Two.Commands.move;
+    this.vertices[1].command = Two.Commands.line;
+
+    this.automatic = false;
 
   };
 
@@ -7209,8 +7639,9 @@ SOFTWARE.
       new Two.Anchor(),
       new Two.Anchor(),
       new Two.Anchor(),
+      new Two.Anchor(),
       new Two.Anchor()
-    ], true);
+    ], true, false, true);
 
     this.width = width;
     this.height = height;
@@ -7246,10 +7677,14 @@ SOFTWARE.
         var xr = this._width / 2;
         var yr = this._height / 2;
 
-        this.vertices[0].set(-xr, -yr);
-        this.vertices[1].set(xr, -yr);
-        this.vertices[2].set(xr, yr);
-        this.vertices[3].set(-xr, yr);
+        this.vertices[0].set(-xr, -yr).command = Two.Commands.move;
+        this.vertices[1].set(xr, -yr).command = Two.Commands.line;
+        this.vertices[2].set(xr, yr).command = Two.Commands.line;
+        this.vertices[3].set(-xr, yr).command = Two.Commands.line;
+        // FYI: Two.Sprite and Two.ImageSequence have 4 verts
+        if (this.vertices[4]) {
+          this.vertices[4].set(-xr, -yr).command = Two.Commands.line;
+        }
 
       }
 
@@ -7266,6 +7701,27 @@ SOFTWARE.
 
       return this;
 
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var clone = new Rectangle(0, 0, this.width, this.height);
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
+
     }
 
   });
@@ -7276,22 +7732,26 @@ SOFTWARE.
 
 (function(Two) {
 
-  var Path = Two.Path, TWO_PI = Math.PI * 2, cos = Math.cos, sin = Math.sin;
+  var Path = Two.Path, TWO_PI = Math.PI * 2, HALF_PI = Math.PI / 2;
+  var cos = Math.cos, sin = Math.sin;
   var _ = Two.Utils;
 
-  var Ellipse = Two.Ellipse = function(ox, oy, rx, ry) {
+  // Circular coefficient
+  var c = (4 / 3) * Math.tan(Math.PI / 8);
+
+  var Ellipse = Two.Ellipse = function(ox, oy, rx, ry, resolution) {
 
     if (!_.isNumber(ry)) {
       ry = rx;
     }
 
-    var amount = Two.Resolution;
+    var amount = resolution || 5;
 
     var points = _.map(_.range(amount), function(i) {
       return new Two.Anchor();
     }, this);
 
-    Path.call(this, points, true, true);
+    Path.call(this, points, true, true, true);
 
     this.width = rx * 2;
     this.height = ry * 2;
@@ -7325,12 +7785,32 @@ SOFTWARE.
     _update: function() {
 
       if (this._flagWidth || this._flagHeight) {
-        for (var i = 0, l = this.vertices.length; i < l; i++) {
-          var pct = i / l;
+        for (var i = 0, l = this.vertices.length, last = l - 1; i < l; i++) {
+
+          var pct = i / last;
           var theta = pct * TWO_PI;
-          var x = this._width * cos(theta) / 2;
-          var y = this._height * sin(theta) / 2;
-          this.vertices[i].set(x, y);
+
+          var rx = this._width / 2;
+          var ry = this._height / 2;
+          var ct = cos(theta);
+          var st = sin(theta);
+
+          var x = rx * cos(theta);
+          var y = ry * sin(theta);
+
+          var lx = i === 0 ? 0 : rx * c * cos(theta - HALF_PI);
+          var ly = i === 0 ? 0 : ry * c * sin(theta - HALF_PI);
+
+          var rx = i === last ? 0 : rx * c * cos(theta + HALF_PI);
+          var ry = i === last ? 0 : ry * c * sin(theta + HALF_PI);
+
+          var v = this.vertices[i];
+
+          v.command = i === 0 ? Two.Commands.move : Two.Commands.curve;
+          v.set(x, y);
+          v.controls.left.set(lx, ly);
+          v.controls.right.set(rx, ry);
+
         }
       }
 
@@ -7346,6 +7826,29 @@ SOFTWARE.
       Path.prototype.flagReset.call(this);
       return this;
 
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var resolution = this.vertices.length;
+      var clone = new Ellipse(0, 0, this.width, this.height, resolution);
+
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
+
     }
 
   });
@@ -7356,18 +7859,22 @@ SOFTWARE.
 
 (function(Two) {
 
-  var Path = Two.Path, TWO_PI = Math.PI * 2, cos = Math.cos, sin = Math.sin;
+  var Path = Two.Path, TWO_PI = Math.PI * 2, HALF_PI = Math.PI / 2;
+  var cos = Math.cos, sin = Math.sin;
   var _ = Two.Utils;
 
-  var Circle = Two.Circle = function(ox, oy, r) {
+  // Circular coefficient
+  var c = (4 / 3) * Math.tan(Math.PI / 8);
 
-    var amount = Two.Resolution;
+  var Circle = Two.Circle = function(ox, oy, r, res) {
+
+    var amount = res || 5;
 
     var points = _.map(_.range(amount), function(i) {
       return new Two.Anchor();
     }, this);
 
-    Path.call(this, points, true, true);
+    Path.call(this, points, true, true, true);
 
     this.radius = r;
 
@@ -7397,12 +7904,32 @@ SOFTWARE.
     _update: function() {
 
       if (this._flagRadius) {
-        for (var i = 0, l = this.vertices.length; i < l; i++) {
-          var pct = i / l;
+        for (var i = 0, l = this.vertices.length, last = l - 1; i < l; i++) {
+
+          var pct = i / last;
           var theta = pct * TWO_PI;
-          var x = this._radius * cos(theta);
-          var y = this._radius * sin(theta);
-          this.vertices[i].set(x, y);
+
+          var radius = this._radius;
+          var ct = cos(theta);
+          var st = sin(theta);
+          var rc = radius * c;
+
+          var x = radius * cos(theta);
+          var y = radius * sin(theta);
+
+          var lx = i === 0 ? 0 : rc * cos(theta - HALF_PI);
+          var ly = i === 0 ? 0 : rc * sin(theta - HALF_PI);
+
+          var rx = i === last ? 0 : rc * cos(theta + HALF_PI);
+          var ry = i === last ? 0 : rc * sin(theta + HALF_PI);
+
+          var v = this.vertices[i];
+
+          v.command = i === 0 ? Two.Commands.move : Two.Commands.curve;
+          v.set(x, y);
+          v.controls.left.set(lx, ly);
+          v.controls.right.set(rx, ry);
+
         }
       }
 
@@ -7417,6 +7944,27 @@ SOFTWARE.
 
       Path.prototype.flagReset.call(this);
       return this;
+
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var clone = new Circle(0, 0, this.radius, this.vertices.length);
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
 
     }
 
@@ -7435,11 +7983,10 @@ SOFTWARE.
 
     sides = Math.max(sides || 0, 3);
 
-    var points = _.map(_.range(sides), function(i) {
-      return new Two.Anchor();
-    });
+    Path.call(this);
 
-    Path.call(this, points, true);
+    this.closed = true;
+    this.automatic = false;
 
     this.width = r * 2;
     this.height = r * 2;
@@ -7478,24 +8025,29 @@ SOFTWARE.
       if (this._flagWidth || this._flagHeight || this._flagSides) {
 
         var sides = this._sides;
-        var amount = this.vertices.length;
+        var amount = sides + 1;
+        var length = this.vertices.length;
 
-        if (amount > sides) {
-          this.vertices.splice(sides - 1, amount - sides);
+        if (length > sides) {
+          this.vertices.splice(sides - 1, length - sides);
+          length = sides;
         }
 
-        for (var i = 0; i < sides; i++) {
+        for (var i = 0; i < amount; i++) {
 
           var pct = (i + 0.5) / sides;
           var theta = TWO_PI * pct + Math.PI / 2;
-          var x = this._width * cos(theta);
-          var y = this._height * sin(theta);
+          var x = this._width * cos(theta) / 2;
+          var y = this._height * sin(theta) / 2;
 
-          if (i >= amount) {
+          if (i >= length) {
             this.vertices.push(new Two.Anchor(x, y));
           } else {
             this.vertices[i].set(x, y);
           }
+
+          this.vertices[i].command = i === 0
+            ? Two.Commands.move : Two.Commands.line;
 
         }
 
@@ -7513,6 +8065,27 @@ SOFTWARE.
 
       return this;
 
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var clone = new Polygon(0, 0, this.radius, this.sides);
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
+
     }
 
   });
@@ -7528,11 +8101,12 @@ SOFTWARE.
 
   var ArcSegment = Two.ArcSegment = function(ox, oy, ir, or, sa, ea, res) {
 
-    var points = _.map(_.range(res || (Two.Resolution * 3)), function() {
+    var amount = res || (Two.Resolution * 3);
+    var points = _.map(_.range(amount), function() {
       return new Two.Anchor();
     });
 
-    Path.call(this, points, false, false, true);
+    Path.call(this, points, true, false, true);
 
     this.innerRadius = ir;
     this.outerRadius = or;
@@ -7690,6 +8264,10 @@ SOFTWARE.
 
           }
 
+          // Final Point
+          vertices[id].copy(vertices[0]);
+          vertices[id].command = Two.Commands.line;
+
         } else if (!connected) {
 
           vertices[id].command = Two.Commands.line;
@@ -7697,12 +8275,11 @@ SOFTWARE.
           vertices[id].y = 0;
           id++;
 
-        }
+          // Final Point
+          vertices[id].copy(vertices[0]);
+          vertices[id].command = Two.Commands.line;
 
-        /**
-         * Final Point
-         */
-        vertices[id].command = Two.Commands.close;
+        }
 
       }
 
@@ -7720,6 +8297,33 @@ SOFTWARE.
         = this._flagInnerRadius = this._flagOuterRadius = false;
 
       return this;
+
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var ir = this.innerRadius;
+      var or = this.outerradius;
+      var sa = this.startAngle;
+      var ea = this.endAngle;
+      var resolution = this.vertices.length;
+
+      var clone = new ArcSegment(0, 0, ir, or, sa, ea, resolution);
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
 
     }
 
@@ -7741,9 +8345,10 @@ SOFTWARE.
   var Path = Two.Path, TWO_PI = Math.PI * 2, cos = Math.cos, sin = Math.sin;
   var _ = Two.Utils;
 
-  var Star = Two.Star = function(ox, oy, or, ir, sides) {
+  var Star = Two.Star = function(ox, oy, ir, or, sides) {
 
-    if (!_.isNumber(ir)) {
+    if (arguments.length <= 3) {
+      or = ir;
       ir = or / 2;
     }
 
@@ -7753,11 +8358,9 @@ SOFTWARE.
 
     var length = sides * 2;
 
-    var points = _.map(_.range(length), function(i) {
-      return new Two.Anchor();
-    });
-
-    Path.call(this, points, true);
+    Path.call(this);
+    this.closed = true;
+    this.automatic = false;
 
     this.innerRadius = ir;
     this.outerRadius = or;
@@ -7796,25 +8399,30 @@ SOFTWARE.
       if (this._flagInnerRadius || this._flagOuterRadius || this._flagSides) {
 
         var sides = this._sides * 2;
-        var amount = this.vertices.length;
+        var amount = sides + 1;
+        var length = this.vertices.length;
 
-        if (amount > sides) {
-          this.vertices.splice(sides - 1, amount - sides);
+        if (length > sides) {
+          this.vertices.splice(sides - 1, length - sides);
+          length = sides;
         }
 
-        for (var i = 0; i < sides; i++) {
+        for (var i = 0; i < amount; i++) {
 
           var pct = (i + 0.5) / sides;
           var theta = TWO_PI * pct;
-          var r = (i % 2 ? this._innerRadius : this._outerRadius);
+          var r = (!(i % 2) ? this._innerRadius : this._outerRadius) / 2;
           var x = r * cos(theta);
           var y = r * sin(theta);
 
-          if (i >= amount) {
+          if (i >= length) {
             this.vertices.push(new Two.Anchor(x, y));
           } else {
             this.vertices[i].set(x, y);
           }
+
+          this.vertices[i].command = i === 0
+            ? Two.Commands.move : Two.Commands.line;
 
         }
 
@@ -7833,6 +8441,31 @@ SOFTWARE.
 
       return this;
 
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var ir = this.innerRadius;
+      var or = this.outerRadius;
+      var sides = this.sides;
+
+      var clone = new Star(0, 0, ir, or, sides);
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
+
     }
 
   });
@@ -7848,7 +8481,7 @@ SOFTWARE.
 
   var RoundedRectangle = Two.RoundedRectangle = function(ox, oy, width, height, radius) {
 
-    if (!_.isNumber(radius)) {
+    if (_.isUndefined(radius)) {
       radius = Math.floor(Math.min(width, height) / 12);
     }
 
@@ -7859,9 +8492,14 @@ SOFTWARE.
         i === 0 ? Two.Commands.move : Two.Commands.curve);
     });
 
-    points[points.length - 1].command = Two.Commands.close;
+    // points[points.length - 1].command = Two.Commands.close;
 
-    Path.call(this, points, false, false, true);
+    Path.call(this, points);
+
+    this.closed = true;
+    this.automatic = false;
+
+    this._renderer.flagRadius = _.bind(RoundedRectangle.FlagRadius, this);
 
     this.width = width;
     this.height = height;
@@ -7874,12 +8512,38 @@ SOFTWARE.
 
   _.extend(RoundedRectangle, {
 
-    Properties: ['width', 'height', 'radius'],
+    Properties: ['width', 'height'],
 
-    MakeObservable: function(obj) {
+    FlagRadius: function() {
+      this._flagRadius = true;
+    },
 
-      Path.MakeObservable(obj);
-      _.each(RoundedRectangle.Properties, Two.Utils.defineProperty, obj);
+    MakeObservable: function(object) {
+
+      Path.MakeObservable(object);
+      _.each(RoundedRectangle.Properties, Two.Utils.defineProperty, object);
+
+      Object.defineProperty(object, 'radius', {
+        enumerable: true,
+        get: function() {
+          return this._radius;
+        },
+        set: function(v) {
+
+          if (this._radius instanceof Two.Vector) {
+            this._radius.unbind(Two.Events.change, this._renderer.flagRadius);
+          }
+
+          this._radius = v;
+
+          if (this._radius instanceof Two.Vector) {
+            this._radius.bind(Two.Events.change, this._renderer.flagRadius);
+          }
+
+          this._flagRadius = true;
+
+        }
+      });
 
     }
 
@@ -7901,29 +8565,37 @@ SOFTWARE.
 
         var width = this._width;
         var height = this._height;
-        var radius = Math.min(Math.max(this._radius, 0),
-          Math.min(width, height));
+
+        var rx, ry;
+
+        if (this._radius instanceof Two.Vector) {
+          rx = this._radius.x;
+          ry = this._radius.y;
+        } else {
+          rx = this._radius;
+          ry = this._radius;
+        }
 
         var v;
         var w = width / 2;
         var h = height / 2;
 
         v = this.vertices[0];
-        v.x = - (w - radius);
+        v.x = - (w - rx);
         v.y = - h;
 
         // Upper Right Corner
 
         v = this.vertices[1];
-        v.x = (w - radius);
+        v.x = (w - rx);
         v.y = - h;
         v.controls.left.clear();
-        v.controls.right.x = radius;
+        v.controls.right.x = rx;
         v.controls.right.y = 0;
 
         v = this.vertices[2];
         v.x = w;
-        v.y = - (h - radius);
+        v.y = - (h - ry);
         v.controls.right.clear();
         v.controls.left.clear();
 
@@ -7931,13 +8603,13 @@ SOFTWARE.
 
         v = this.vertices[3];
         v.x = w;
-        v.y = (h - radius);
+        v.y = (h - ry);
         v.controls.left.clear();
         v.controls.right.x = 0;
-        v.controls.right.y = radius;
+        v.controls.right.y = ry;
 
         v = this.vertices[4];
-        v.x = (w - radius);
+        v.x = (w - rx);
         v.y = h;
         v.controls.right.clear();
         v.controls.left.clear();
@@ -7945,15 +8617,15 @@ SOFTWARE.
         // Bottom Left Corner
 
         v = this.vertices[5];
-        v.x = - (w - radius);
+        v.x = - (w - rx);
         v.y = h;
         v.controls.left.clear();
-        v.controls.right.x = - radius;
+        v.controls.right.x = - rx;
         v.controls.right.y = 0;
 
         v = this.vertices[6];
         v.x = - w;
-        v.y = (h - radius);
+        v.y = (h - ry);
         v.controls.left.clear();
         v.controls.right.clear();
 
@@ -7961,13 +8633,13 @@ SOFTWARE.
 
         v = this.vertices[7];
         v.x = - w;
-        v.y = - (h - radius);
+        v.y = - (h - ry);
         v.controls.left.clear();
         v.controls.right.x = 0;
-        v.controls.right.y = - radius;
+        v.controls.right.y = - ry;
 
         v = this.vertices[8];
-        v.x = - (w - radius);
+        v.x = - (w - rx);
         v.y = - h;
         v.controls.left.clear();
         v.controls.right.clear();
@@ -7989,6 +8661,31 @@ SOFTWARE.
       Path.prototype.flagReset.call(this);
 
       return this;
+
+    },
+
+    clone: function(parent) {
+
+      parent = parent || this.parent;
+
+      var width = this.width;
+      var height = this.height;
+      var radius = this.radius;
+
+      var clone = new RoundedRectangle(0, 0, width, height, radius);
+      clone.translation.copy(this.translation);
+      clone.rotation = this.rotation;
+      clone.scale = this.scale;
+
+      _.each(Two.Path.Properties, function(k) {
+        clone[k] = this[k];
+      }, this);
+
+      if (parent) {
+        parent.add(clone);
+      }
+
+      return clone;
 
     }
 
@@ -8041,8 +8738,9 @@ SOFTWARE.
   _.extend(Two.Text, {
 
     Properties: [
-      'value', 'family', 'size', 'leading', 'alignment', 'linewidth', 'style', 'className',
-      'weight', 'decoration', 'baseline', 'opacity', 'visible', 'fill', 'stroke'
+      'value', 'family', 'size', 'leading', 'alignment', 'linewidth', 'style',
+      'className', 'weight', 'decoration', 'baseline', 'opacity', 'visible',
+      'fill', 'stroke'
     ],
 
     FlagFill: function() {
@@ -8057,7 +8755,7 @@ SOFTWARE.
 
       Two.Shape.MakeObservable(object);
 
-      _.each(Two.Text.Properties.slice(0, 12), Two.Utils.defineProperty, object);
+      _.each(Two.Text.Properties.slice(0, 13), Two.Utils.defineProperty, object);
 
       Object.defineProperty(object, 'fill', {
         enumerable: true,
@@ -8783,6 +9481,7 @@ SOFTWARE.
 
 (function(Two) {
 
+  var root = Two.root;
   var _ = Two.Utils;
   var anchor;
   var regex = {
@@ -8790,7 +9489,7 @@ SOFTWARE.
     image: /\.(jpe?g|png|gif|tiff)$/i
   };
 
-  if ((this || window).document) {
+  if (root.document) {
     anchor = document.createElement('a');
   }
 
@@ -8838,7 +9537,7 @@ SOFTWARE.
 
     getAbsoluteURL: function(path) {
       if (!anchor) {
-        // TODO: Fix for headless environment
+        // TODO: Fix for headless environments
         return path;
       }
       anchor.href = path;
@@ -8855,10 +9554,24 @@ SOFTWARE.
 
       var image;
 
-      if (regex.video.test(absoluteSrc)) {
-        image = document.createElement('video');
+      if (Two.Utils.Image) {
+
+        // TODO: Fix for headless environments
+        image = new Two.Utils.Image();
+        Two.CanvasRenderer.Utils.shim(image, 'img');
+
+      } else if (root.document) {
+
+        if (regex.video.test(absoluteSrc)) {
+          image = document.createElement('video');
+        } else {
+          image = document.createElement('img');
+        }
+
       } else {
-        image = document.createElement('img');
+
+        console.warn('Two.js: no prototypical image defined for Two.Texture');
+
       }
 
       image.crossOrigin = 'anonymous';
@@ -8878,22 +9591,26 @@ SOFTWARE.
       img: function(texture, callback) {
 
         var loaded = function(e) {
-          texture.image.removeEventListener('load', loaded, false);
-          texture.image.removeEventListener('error', error, false);
+          if (_.isFunction(texture.image.removeEventListener)) {
+            texture.image.removeEventListener('load', loaded, false);
+            texture.image.removeEventListener('error', error, false);
+          }
           if (_.isFunction(callback)) {
             callback();
           }
         };
         var error = function(e) {
-          texture.image.removeEventListener('load', loaded, false);
-          texture.image.removeEventListener('error', error, false);
+          if (_.isFunction(texture.image.removeEventListener)) {
+            texture.image.removeEventListener('load', loaded, false);
+            texture.image.removeEventListener('error', error, false);
+          }
           throw new Two.Utils.Error('unable to load ' + texture.src);
         };
 
         if (_.isNumber(texture.image.width) && texture.image.width > 0
           && _.isNumber(texture.image.height) && texture.image.height > 0) {
             loaded();
-        } else {
+        } else if (_.isFunction(texture.image.addEventListener)) {
           texture.image.addEventListener('load', loaded, false);
           texture.image.addEventListener('error', error, false);
         }
@@ -8906,7 +9623,20 @@ SOFTWARE.
 
         texture.image.setAttribute('two-src', texture.src);
         Texture.ImageRegistry.add(texture.src, texture.image);
-        texture.image.src = texture.src;
+
+        if (Two.Utils.isHeadless) {
+
+          var fs = require('fs');
+          var buffer = fs.readFileSync(texture.src);
+
+          texture.image.src = buffer;
+          loaded();
+
+        } else {
+
+          texture.image.src = texture.src;
+
+        }
 
       },
       video: function(texture, callback) {
@@ -8932,6 +9662,11 @@ SOFTWARE.
         texture.image.addEventListener('error', error, false);
 
         if (texture.image && texture.image.getAttribute('two-src')) {
+          return;
+        }
+
+        if (Two.Utils.isHeadless) {
+          throw new Two.Utils.Error('video textures are not implemented in headless environments.');
           return;
         }
 
