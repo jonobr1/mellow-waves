@@ -400,7 +400,7 @@
 
           update();
 
-          if (renderer.context.getExtension('OES_texture_float')) {
+          if (isWebGLCompatible()) {
 
             simulation.setTimer(Sound.ctx.currentTime);
 
@@ -516,7 +516,7 @@
           ring.radius = Math.min(two.width, two.height) / 4.6;
           ring.width = ring.height = ring.radius;
           ring.linewidth = ring.radius / 50;
-          ring.visible = !renderer.context.getExtension('OES_texture_float');
+          ring.visible = !isWebGLCompatible();
 
           buy.physical.translation.x = - (width + margin * 4) / 2;
           buy.physical.rotation = - Math.PI / 2;
@@ -843,6 +843,11 @@
             }
           }
           return null;
+        }
+
+        function isWebGLCompatible() {
+          return renderer.context.getExtension('OES_texture_float')
+            && renderer.context.getExtension('WEBGL_draw_buffers');
         }
 
       </script>
