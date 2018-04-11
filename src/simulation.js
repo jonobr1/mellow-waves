@@ -47,10 +47,6 @@ GPGPU.Simulation = function () {
 
       'varying vec2 vUv;',
 
-      'float rand(vec2 co) {',
-        'return fract( sin( dot( co.xy , vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );',
-      '}',
-
       'void main() {',
 
         'vec4 info = texture2D( tOrigins, vUv );',

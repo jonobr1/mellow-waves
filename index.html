@@ -9,13 +9,18 @@
     <title>Patatap: Mellow Waves</title>
 
     <meta name="name" content="Patatap">
+<<<<<<< HEAD
     <meta name="image" content="http://cornelius.patatap.com/images/thumbnail.png">
+=======
+    <meta name="image" content="http://cornelius.patatap.com/images/thumbnail.jpg">
+>>>>>>> master
     <meta name="description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
 
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Patatap">
     <meta name="twitter:description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
     <meta name="twitter:creator" content="@jonobr1">
+<<<<<<< HEAD
     <meta name="twitter:image:src" content="http://cornelius.patatap.com/images/thumbnail.png">
 
     <meta itemprop="name" content="Patatap">
@@ -25,6 +30,20 @@
     <meta property="og:title" content="Patatap">
     <meta property="og:type" content="website">
     <meta property="og:image" content="http://cornelius.patatap.com/images/thumbnail.png"/>
+=======
+    <meta name="twitter:image:src" content="http://cornelius.patatap.com/images/thumbnail.jpg">
+
+    <meta itemprop="name" content="Patatap">
+    <meta itemprop="description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
+    <meta itemprop="image" src="http://cornelius.patatap.com/images/thumbnail.jpg">
+
+    <meta property="og:title" content="Patatap">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="http://cornelius.patatap.com">
+    <meta property="og:image" content="http://cornelius.patatap.com/images/thumbnail.jpg"/>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+>>>>>>> master
     <meta property="og:site_name" content="Patatap">
     <meta property="og:description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
 
@@ -40,6 +59,8 @@
         background: black;
         overflow: hidden;
         cursor: pointer;
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
+        -webkit-tap-highlight-color: transparent;
       }
       div.equalizer {
         position: absolute;
@@ -71,6 +92,7 @@
       </a>
     </div> -->
     <div class="scripts">
+      <script src="./third-party/has.js"></script>
       <script src="./third-party/three.js"></script>
       <script src="./third-party/two.js"></script>
       <script src="./third-party/sound.js"></script>
@@ -111,7 +133,6 @@
 
         var equalizer, resolution = 11;
         var size = 512;
-        Two.Resolution = 32;
 
         var two = new Two({
           type: Two.Types.canvas,
@@ -121,16 +142,16 @@
         var sequencer = new Sequencer(Sound.ctx);
         var loader = new THREE.TextureLoader();
 
-        var ring = two.makeCircle(0, 0, Math.min(two.width, two.height) / 3);
+        var ring = two.makePolygon(0, 0, Math.min(two.width, two.height) / 4.6, 512);
         ring.stroke = 'white';
         ring.noFill();
         ring.visible = false;
-        ring.curved = true;
         ring.phi = 2;
         ring.join = 'round';
         ring.direction = 1;
         ring.magnitude = 0.3;
         ring.velocity = 0;
+        ring.radius = Math.min(two.width, two.height) / 4.6;
 
         var logo = two.makeSprite(root + '/images/cornelius-logo.png', 0, 0);
         logo.visible = false;
@@ -164,7 +185,7 @@
           window.location.href = buy.digital.link;
         };
 
-        var renderer = new THREE.WebGLRenderer({ antialias: false, stencil: false });
+        var renderer = new THREE.WebGLRenderer({ antialias: true, stencil: false });
         var scene = new THREE.Scene();
         var camera = new THREE.PerspectiveCamera(60);
         camera.frustumSize = 100;
@@ -395,18 +416,23 @@
 
           update();
 
-          simulation.setTimer(Sound.ctx.currentTime);
+          if (isWebGLCompatible()) {
 
-          if (frameCount % 2 === 0) {
-            gpgpu.pass(simulation.setPositionsTexture(renderTargets.a), renderTargets.b);
-            material.uniforms.map.value = renderTargets.b.texture;
-          } else {
-            gpgpu.pass(simulation.setPositionsTexture(renderTargets.b), renderTargets.a);
-            material.uniforms.map.value = renderTargets.a.texture;
+            simulation.setTimer(Sound.ctx.currentTime);
+
+            if (frameCount % 2 === 0) {
+              gpgpu.pass(simulation.setPositionsTexture(renderTargets.a), renderTargets.b);
+              material.uniforms.map.value = renderTargets.b.texture;
+            } else {
+              gpgpu.pass(simulation.setPositionsTexture(renderTargets.b), renderTargets.a);
+              material.uniforms.map.value = renderTargets.a.texture;
+            }
+            frameCount++;
+
+            renderer.render(scene, camera);
+
           }
-          frameCount++;
 
-          renderer.render(scene, camera);
           two.update();
 
           requestAnimationFrame(loop);
@@ -417,7 +443,7 @@
 
           equalizer.update(true);
 
-          var length = buttons.list.length;//ring.vertices.length;
+          var length = Math.max(buttons.list.length, ring.vertices.length);
           var radius = ring.radius;
           var phi = ring.phi;
           var fft = equalizer.average.value / 256;
@@ -428,7 +454,7 @@
 
           simulation
             .setFFT(fft)
-            .setRotation(ring.rotation);
+            .setRotation(- ring.rotation);
 
           material.uniforms.fft.value = fft;
           material.uniforms.rotation.value -= (fft * Math.PI / 20) * ring.direction;
@@ -445,18 +471,22 @@
 
             if (ring.visible) {
 
-              var pct = i / (length - 1);
+              var pct = i / (ring.vertices.length - 1);
               var anchor = ring.vertices[i];
 
-              var theta = pct * TWO_PI;
-              var phase = Math.sin(pct * TWO_PI * phi);
-              var amp = radius * (1 + phase * magnitude * fft);
+              if (anchor) {
 
-              var x = amp * Math.cos(theta);
-              var y = amp * Math.sin(theta);
+                var theta = pct * TWO_PI;
+                var phase = Math.sin(pct * TWO_PI * phi);
+                var amp = radius * (1 + phase * magnitude * fft);
 
-              anchor.x = x;
-              anchor.y = y;
+                var x = amp * Math.cos(theta);
+                var y = amp * Math.sin(theta);
+
+                anchor.x = x;
+                anchor.y = y;
+
+              }
 
             }
 
@@ -499,9 +529,10 @@
           camera.aspect = aspect;
           camera.updateProjectionMatrix();
 
-          ring._radius = Math.min(two.width, two.height) / 6;
-          ring.linewidth = ring.radius / 25;
-          // ring.visible = true;
+          ring.radius = Math.min(two.width, two.height) / 4.6;
+          ring.width = ring.height = ring.radius;
+          ring.linewidth = ring.radius / 50;
+          ring.visible = !isWebGLCompatible();
 
           buy.physical.translation.x = - (width + margin * 4) / 2;
           buy.physical.rotation = - Math.PI / 2;
@@ -697,6 +728,8 @@
 
           window.addEventListener('click', function(e) {
 
+            e.preventDefault();
+
             var margin = two.width * 0.01;
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
@@ -704,7 +737,7 @@
             var y = e.clientY;
 
             if (!shouldBuy) {
-              return;
+              return false;
             }
 
             for (var type in buy) {
@@ -722,6 +755,8 @@
                 break;
               }
             }
+
+            return false;
 
           });
 
@@ -810,7 +845,9 @@
             delete mouse.button;
           };
 
-          window.addEventListener('mousedown', mousedown, false);
+          if (!has.mobile) {
+            window.addEventListener('mousedown', mousedown, false);
+          }
 
         }
 
@@ -822,6 +859,11 @@
             }
           }
           return null;
+        }
+
+        function isWebGLCompatible() {
+          return renderer.context.getExtension('OES_texture_float')
+            && renderer.context.getExtension('WEBGL_draw_buffers');
         }
 
       </script>
