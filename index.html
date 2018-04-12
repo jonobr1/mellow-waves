@@ -329,7 +329,7 @@
             'uniform float radius;',
 
             'varying float opacity;',
-            'varying vec2 vUv;',
+            // 'varying vec2 vUv;',
 
             'void main() {',
 
@@ -342,7 +342,7 @@
               'float t = smoothstep( 0.0, radius * 2.0, dist );',
               'gl_PointSize = 1.0;',
 
-              'vUv = uv;',
+              // 'vUv = uv;',
               'opacity = mix( data.w, data.w * 0.5, t );',
 
               'gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );',
