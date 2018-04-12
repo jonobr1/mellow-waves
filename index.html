@@ -48,6 +48,9 @@
         -webkit-tap-highlight-color: rgba(0,0,0,0);
         -webkit-tap-highlight-color: transparent;
       }
+      #content {
+        position: relative;
+      }
       div.equalizer {
         position: absolute;
         top: 20px;
@@ -59,6 +62,71 @@
         display: block;
         cursor: border;
       }
+      #lobby {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 50px;
+        height: 50px;
+        margin-top: -25px;
+        margin-left: -25px;
+        opacity: 1;
+        background: url(/images/icons/sync.svg) center center no-repeat;
+        background-size: 100%;
+        border-radius: 50%;
+        z-index: 9999;
+        -webkit-transition: opacity 0.35s cubic-bezier(0.075, 0.82, 0.165, 1);
+        -moz-transition: opacity 0.35s cubic-bezier(0.075, 0.82, 0.165, 1);
+        transition: opacity 0.35s cubic-bezier(0.075, 0.82, 0.165, 1);
+        -webkit-transform-origin: center center;
+        -moz-transform-origin: center center;
+        -ms-transform-origin: center center;
+        -o-transform-origin: center center;
+        transform-origin: center center;
+        -webkit-transform-style: preserve-3d;
+        -moz-transform-style: preserve-3d;
+        -ms-transform-style: preserve-3d;
+        -o-transform-style: preserve-3d;
+        transform-style: preserve-3d;
+        -webkit-animation-name: spin;
+        -moz-animation-name: spin;
+        animation-name: spin;
+        -webkit-animation-duration: 1s;
+        -moz-animation-duration: 1s;
+        animation-duration: 1s;
+        -webkit-animation-iteration-count: infinite;
+        -moz-animation-iteration-count: infinite;
+        animation-iteration-count: infinite;
+        -webkit-animation-timing-function: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+        -moz-animation-timing-function: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+        animation-timing-function: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+        content: ""; }
+      body.loaded #lobby {
+        opacity: 0;
+      }
+      @-webkit-keyframes spin {
+        0% {
+          -webkit-transform: scale(0.6) rotate(0deg); }
+        100% {
+          -webkit-transform: scale(0.6) rotate(360deg); } }
+      @-moz-keyframes spin {
+        0% {
+          -moz-transform: scale(0.6) rotate(0deg); }
+        100% {
+          -moz-transform: scale(0.6) rotate(360deg); } }
+      @keyframes spin {
+        0% {
+          -webkit-transform: scale(0.6) rotate(0deg);
+          -moz-transform: scale(0.6) rotate(0deg);
+          -ms-transform: scale(0.6) rotate(0deg);
+          -o-transform: scale(0.6) rotate(0deg);
+          transform: scale(0.6) rotate(0deg); }
+        100% {
+          -webkit-transform: scale(0.6) rotate(360deg);
+          -moz-transform: scale(0.6) rotate(360deg);
+          -ms-transform: scale(0.6) rotate(360deg);
+          -o-transform: scale(0.6) rotate(360deg);
+          transform: scale(0.6) rotate(360deg); } }
       .scripts {
         display: none;
       }
@@ -69,14 +137,8 @@
 
   </head>
   <body>
-    <!-- <div id="buy-links">
-      <a href="https://fanlink.to/CorneliusMellowWaves" target="_blank">
-        Digital
-      </a>
-      <a href="https://www.amazon.com/Mellow-Waves-Black-White-Limited/dp/B0775J13H2" target="_blank">
-        Physical
-      </a>
-    </div> -->
+    <div id="content"></div>
+    <div id="lobby"></div>
     <div class="scripts">
       <script src="./third-party/has.js"></script>
       <script src="./third-party/three.js"></script>
@@ -343,6 +405,7 @@
         function loaded() {
           sounds.index++;
           if (sounds.index >= sounds.length && !sounds.ready) {
+            document.body.classList.add('loaded');
             sounds.ready = true;
             sounds[0].gain.gain.value = 1.5;
             setup();
@@ -353,8 +416,10 @@
 
           renderer.setClearColor(0x000000);
 
-          document.body.appendChild(renderer.domElement);
-          two.appendTo(document.body);
+          var container = document.querySelector('#content');
+
+          container.appendChild(renderer.domElement);
+          two.appendTo(container);
 
           equalizer = new Equalizer();//.appendTo(document.body);
 
@@ -584,6 +649,7 @@
           button.noFill();
           button.opacity = 0;
           button.sound = sound;
+          sound.button = button;
           buttons.list.push(button);
 
           return button;
@@ -848,8 +914,8 @@
         }
 
         function isWebGLCompatible() {
-          return renderer.context.getExtension('OES_texture_float')
-            && renderer.context.getExtension('WEBGL_draw_buffers');
+          return renderer.context.getExtension('OES_texture_float');
+            // && renderer.context.getExtension('WEBGL_draw_buffers');
         }
 
       </script>
