@@ -585,7 +585,7 @@
           var aspect = two.width / two.height;
           var frustumSize = camera.frustumSize;
 
-          var margin = two.width * 0.01;
+          var margin = getMargin();
           var width = two.width - margin * 8;
           var height = two.height - margin * 2;
 
@@ -627,8 +627,8 @@
               y *= height;
 
               button.translation.set(x, y);
-              button.width = xpct * width - margin;
-              button.height = ypct * height - margin;
+              button.width = xpct * width - margin / 2;
+              button.height = ypct * height - margin / 2;
 
             }
           }
@@ -687,7 +687,7 @@
           };
           var touchstart = function(e) {
 
-            var margin = two.width * 0.01;
+            var margin = getMargin();
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
 
@@ -726,7 +726,7 @@
           };
           var touchmove = function(e) {
 
-            var margin = two.width * 0.01;
+            var margin = getMargin();
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
 
@@ -796,7 +796,7 @@
 
             e.preventDefault();
 
-            var margin = two.width * 0.01;
+            var margin = getMargin();
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
             var x = e.clientX;
@@ -843,7 +843,7 @@
           };
           var mousedown = function(e) {
 
-            var margin = two.width * 0.01;
+            var margin = getMargin();
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
 
@@ -869,7 +869,7 @@
           };
           var mousemove = function(e) {
 
-            var margin = two.width * 0.01;
+            var margin = getMargin();
             var width = two.width - margin * 8;
             var height = two.height - margin * 2;
 
@@ -931,6 +931,10 @@
           return renderer.context.getExtension('OES_texture_float')
             && !has.iOS;
             // && renderer.context.getExtension('WEBGL_draw_buffers');
+        }
+
+        function getMargin() {
+          return Math.max(two.width * 0.01, 10);
         }
 
       </script>
