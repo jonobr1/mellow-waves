@@ -159,6 +159,10 @@
         duration: this.buffer.duration - this._offset
       });
 
+      if (ctx && /suspended/.test(ctx.state)) {
+        ctx.resume();
+      }
+
       if (this.source) {
         this.stop();
       }
