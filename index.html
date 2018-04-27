@@ -145,6 +145,7 @@
       <script src="./third-party/two.js"></script>
       <script src="./third-party/sound.js"></script>
       <script src="./third-party/equalizer.js"></script>
+      <script src="./third-party/to-half.js"></script>
       <script src="./src/sequencer.js"></script>
       <script src="./src/gpgpu.js"></script>
       <script src="./src/simulation.js"></script>
@@ -245,18 +246,19 @@
           .setRadius( camera.frustumSize / 4 );
 
         var origins = {
-          data: new Float32Array(size * size * 3)
+          data: new Uint16Array(size * size * 3),
+          resolution: simulation.material.uniforms.resolution.value
         };
 
         for (var i = 0, l = origins.data.length; i < l; i += 3) {
 
-          origins.data[i + 0] = Math.random();
-          origins.data[i + 1] = Math.random() * 0.05 - 0.025;
-          origins.data[i + 2] = 0.01 * Math.random();
+          origins.data[i + 0] = toHalf(origins.resolution * Math.random());
+          origins.data[i + 1] = toHalf(origins.resolution * Math.random());
+          origins.data[i + 2] = toHalf(origins.resolution * Math.random());
 
         }
 
-        origins.texture = new THREE.DataTexture(origins.data, size, size, THREE.RGBFormat, THREE.FloatType);
+        origins.texture = new THREE.DataTexture(origins.data, size, size, THREE.RGBFormat, THREE.HalfFloatType);
         origins.texture.minFilter = THREE.NearestFilter;
         origins.texture.magFilter = THREE.NearestFilter;
         origins.texture.needsUpdate = true;
@@ -268,7 +270,7 @@
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
             format: THREE.RGBAFormat,
-            type: THREE.FloatType,
+            type: THREE.HalfFloatType,
             depthBuffer: false,
             stencilBuffer: false
           }),
@@ -276,7 +278,7 @@
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
             format: THREE.RGBAFormat,
-            type: THREE.FloatType,
+            type: THREE.HalfFloatType,
             depthBuffer: false,
             stencilBuffer: false
           })

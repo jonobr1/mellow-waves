@@ -15,7 +15,8 @@ GPGPU.Simulation = function () {
       magnitude: { type: 'f', value: 0.3 },
       fft: { type: 'f', value: 0 },
       stepSize: { type: 'f', value: 0.01 },
-      rotation: { type: 'f', value: 0 }
+      rotation: { type: 'f', value: 0 },
+      resolution: { type: 'f', value: 1024 }
     },
 
     vertexShader: [
@@ -44,12 +45,17 @@ GPGPU.Simulation = function () {
       'uniform float fft;',
       'uniform float stepSize;',
       'uniform float rotation;',
+      'uniform float resolution;',
 
       'varying vec2 vUv;',
 
       'void main() {',
 
         'vec4 info = texture2D( tOrigins, vUv );',
+        'info.x = info.x / resolution;',
+        'info.y = ( info.y / resolution ) * 0.05 - 0.025;',
+        'info.z = ( info.z / resolution ) * 0.01;',
+
         'float pct = info.x;',
         'float t = info.z;',
         'float theta = pct * TWO_PI;',
