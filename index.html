@@ -436,8 +436,11 @@
 
           equalizer = new Equalizer();//.appendTo(document.body);
 
-          setupMouseEvents();
-          setupTouchEvents();
+          if (has.mobile) {
+            setupTouchEvents();
+          } else {
+            setupMouseEvents();
+          }
 
           window.addEventListener('keydown', function(e) {
             var key = String.fromCharCode(e.which).toLowerCase();
@@ -770,11 +773,42 @@
 
           };
           var touchend = function(e) {
+
+            var margin = getMargin();
+            var width = two.width - margin * 8;
+            var height = two.height - margin * 2;
+
             for (var id in cursors) {
+
               var cursor = cursors[id];
+
               if (cursor.button) {
                 release(cursor);
               }
+
+              if (shouldBuy) {
+
+                for (var type in buy) {
+
+                  var button = buy[type];
+
+                  var x = cursor.x * width + margin * 4;
+                  var y = cursor.y * height + margin;
+
+                  var bx = button.translation.x + two.scene.translation.x;
+                  var by = button.translation.y + two.scene.translation.y;
+
+                  var dx = Math.abs(bx - x);
+                  var dy = Math.abs(by - y);
+
+                  if (dx < 2 * margin && dy < 10 * margin) {
+                    button.onClick();
+                    break;
+                  }
+                }
+
+              }
+
             }
           };
           var release = function(cursor) {
