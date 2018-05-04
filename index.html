@@ -962,8 +962,8 @@
         }
 
         function isWebGLCompatible() {
-          return renderer.context.getExtension('OES_texture_float')
-            && !has.iOS;
+          return renderer.context.getExtension('OES_texture_float');
+            // && !has.iOS;
             // && renderer.context.getExtension('WEBGL_draw_buffers');
         }
 
