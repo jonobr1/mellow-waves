@@ -247,27 +247,27 @@
           .setRadius( camera.frustumSize / 4 );
 
         var origins = {
-          // data: new Float32Array(size * size * 3),
-          data: new Uint16Array(size * size * 4),
+          data: new Float32Array(size * size * 3),
+          // data: new Uint16Array(size * size * 4),
           // data: new Uint8Array(size * size * 4),
           resolution: simulation.material.uniforms.resolution.value
         };
 
         for (var i = 0, l = origins.data.length; i < l; i += 3) {
 
-          origins.data[i + 0] = toHalf(origins.resolution * Math.random());
-          origins.data[i + 1] = toHalf(origins.resolution * Math.random());
-          origins.data[i + 2] = toHalf(origins.resolution * Math.random());
+          // origins.data[i + 0] = toHalf(origins.resolution * Math.random());
+          // origins.data[i + 1] = toHalf(origins.resolution * Math.random());
+          // origins.data[i + 2] = toHalf(origins.resolution * Math.random());
           // origins.data[i + 3] = toHalf(0);
 
-          // origins.data[i + 0] = origins.resolution * Math.random();
-          // origins.data[i + 1] = origins.resolution * Math.random();
-          // origins.data[i + 2] = origins.resolution * Math.random();
+          origins.data[i + 0] = origins.resolution * Math.random();
+          origins.data[i + 1] = origins.resolution * Math.random();
+          origins.data[i + 2] = origins.resolution * Math.random();
           // origins.data[i + 3] = 0;
 
         }
 
-        origins.texture = new THREE.DataTexture(origins.data, size, size, THREE.RGBFormat, THREE.HalfFloatType);
+        origins.texture = new THREE.DataTexture(origins.data, size, size, THREE.RGBFormat, THREE.FloatType);
         origins.texture.minFilter = THREE.NearestFilter;
         origins.texture.magFilter = THREE.NearestFilter;
         origins.texture.needsUpdate = true;
@@ -962,8 +962,8 @@
         }
 
         function isWebGLCompatible() {
-          return renderer.context.getExtension('OES_texture_float');
-            // && !has.iOS;
+          return renderer.context.getExtension('OES_texture_float')
+            && !has.iOS;
             // && renderer.context.getExtension('WEBGL_draw_buffers');
         }
 
