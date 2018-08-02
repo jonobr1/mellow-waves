@@ -230,6 +230,9 @@
         buy.digital.link = 'https://fanlink.to/CorneliusMellowWaves';
 
         buy.physical.onClick = function() {
+          if (url.boolean('kiosk')) {
+            return;
+          }
           gtag('event', 'referral', {
             'event_category': 'merchandise',
             'event_label': 'physical',
@@ -238,6 +241,9 @@
           window.location.href = buy.physical.link;
         };
         buy.digital.onClick = function() {
+          if (url.boolean('kiosk')) {
+            return;
+          }
           gtag('event', 'referral', {
             'event_category': 'merchandise',
             'event_label': 'digital',
