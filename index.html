@@ -327,10 +327,6 @@
 
         var material = new THREE.ShaderMaterial({
           uniforms: {
-            glow: {
-              type: 't',
-              value: loader.load(root + '/images/glow.jpg')
-            },
             uvTransform: {
               type: 'm3',
               value: new THREE.Matrix3().set(0, 0, 1, 1, 0, 0, 0)
@@ -362,7 +358,6 @@
             'uniform float radius;',
 
             'varying float opacity;',
-            // 'varying vec2 vUv;',
 
             'void main() {',
 
@@ -375,7 +370,6 @@
               'float t = smoothstep( 0.0, radius * 2.0, dist );',
               'gl_PointSize = 1.0;',
 
-              // 'vUv = uv;',
               'opacity = mix( data.w, data.w * 0.5, t );',
 
               'gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );',
@@ -386,14 +380,12 @@
           fragmentShader: [
 
             'uniform mat3 uvTransform;',
-            'uniform sampler2D glow;',
 
             'varying float opacity;',
 
             'void main() {',
               'vec2 uv = ( uvTransform * vec3( gl_PointCoord.x, 1.0 - gl_PointCoord.y, 1.0 ) ).xy;',
-              'vec4 texel = texture2D( glow, uv );',
-              'gl_FragColor = vec4( texel.rgb, opacity );',
+              'gl_FragColor = vec4( 1.0, 1.0, 1.0, opacity );',
             '}'
 
           ].join('\n'),

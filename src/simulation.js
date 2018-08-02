@@ -78,9 +78,17 @@ GPGPU.Simulation = function () {
           'float disperse = 25.0 * stepSize * info.y;',
           'amp = stepSize * ( 25.0 * pow( fft, 0.0625 ) + 1.0 );',
 
+          // Add noise values here:
+          // 'float tx = ( pos.y + timer ) * 0.033;',
+          // 'float ty = ( pos.x + timer ) * 0.035;',
+          //
+          // 'pos.x += sin( tx ) * cos( tx ) * 0.1;',
+          // 'pos.y += sin( ty ) * cos( ty ) * 0.1;',
+
           'pos.x = disperse * cos( theta ) + pos.x;',
           'pos.y = disperse * sin( theta ) + pos.y;',
           'pos.z += amp;',
+
           'pos.w -= t;',
 
         '}',
