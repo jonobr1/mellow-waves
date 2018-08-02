@@ -57,6 +57,9 @@ GPGPU.Simulation = function () {
         'info.z = ( info.z / resolution ) * 0.01;',
 
         'float pct = info.x;',
+        'float visible = step( vUv.x + vUv.y, fft * timer / 10.0 + timer / 50.0 );',
+        // 'float available = step( 2.0, timer / 10.0 );',
+
         'float t = info.z;',
         'float theta = pct * TWO_PI;',
         'float phase = sin( theta * phi );',
@@ -71,12 +74,14 @@ GPGPU.Simulation = function () {
           'pos.y = amp * sin( theta + rotation );',
           'pos.z = radius * fft * 2.0;',
 
-          'pos.w = 2.0 * ( fft + 0.1 ) * ( 1.0 - info.y );',
+          'pos.w = visible;',
+          'pos.w *= 2.0 * ( fft + 0.1 ) * ( 1.0 - info.y );',
 
         '} else {',
 
-          'float disperse = 25.0 * stepSize * info.y;',
-          'amp = stepSize * ( 25.0 * pow( fft, 0.0625 ) + 1.0 );',
+          'float band = pow( fft, 0.0625 );',
+          'float disperse = 50.0 * stepSize * info.y;',
+          'amp = stepSize * ( 25.0 * band + 1.0 );',
 
           // Add noise values here:
           // 'float tx = ( pos.y + timer ) * 0.033;',
@@ -89,7 +94,7 @@ GPGPU.Simulation = function () {
           'pos.y = disperse * sin( theta ) + pos.y;',
           'pos.z += amp;',
 
-          'pos.w -= t;',
+          'pos.w -= t * band;',
 
         '}',
 
