@@ -49,6 +49,24 @@ GPGPU.Simulation = function () {
 
       'varying vec2 vUv;',
 
+      'vec2 hash( vec2 x ) {',
+        'const vec2 k = vec2( 0.3183099, 0.3678794 );',
+        'x = x * k + k.yx;',
+        'return 2.0 * fract( 16.0 * k * fract( x.x * x.y * ( x.x + x.y ) ) ) - 1.0;',
+      '}',
+
+      'float noise( in vec2 p ) {',
+        'vec2 i = floor( p );',
+        'vec2 f = fract( p );',
+
+        'vec2 u = f * f * ( 3.0 - 2.0 * f );',
+
+        'return mix( mix( dot( hash( i + vec2( 0.0, 0.0 ) ), f - vec2( 0.0, 0.0 ) ),',
+                         'dot( hash( i + vec2( 1.0, 0.0 ) ), f - vec2( 1.0, 0.0 ) ), u.x ),',
+                    'mix( dot( hash( i + vec2( 0.0, 1.0 ) ), f - vec2( 0.0, 1.0 ) ),',
+                         'dot( hash( i + vec2( 1.0, 1.0 ) ), f - vec2( 1.0, 1.0 ) ), u.x ), u.y );',
+      '}',
+
       'void main() {',
 
         'vec4 info = texture2D( tOrigins, vUv );',
@@ -57,8 +75,8 @@ GPGPU.Simulation = function () {
         'info.z = ( info.z / resolution ) * 0.01;',
 
         'float pct = info.x;',
-        'float visible = step( vUv.x + vUv.y, fft * timer / 10.0 + timer / 50.0 );',
-        // 'float available = step( 2.0, timer / 10.0 );',
+        'float sum = vUv.x * ( 1.0 + vUv.y );',
+        'float visible = step( sum, fft * timer * 0.1 + timer * 0.01 );',
 
         'float t = info.z;',
         'float theta = pct * TWO_PI;',
@@ -81,18 +99,17 @@ GPGPU.Simulation = function () {
 
           'float band = pow( fft, 0.0625 );',
           'float disperse = 50.0 * stepSize * info.y;',
-          'amp = stepSize * ( 25.0 * band + 1.0 );',
+          'amp = stepSize * ( 100.0 * band + 2.0 );',
 
-          // Add noise values here:
-          // 'float tx = ( pos.y + timer ) * 0.033;',
-          // 'float ty = ( pos.x + timer ) * 0.035;',
-          //
-          // 'pos.x += sin( tx ) * cos( tx ) * 0.1;',
-          // 'pos.y += sin( ty ) * cos( ty ) * 0.1;',
-
-          'pos.x = disperse * cos( theta ) + pos.x;',
-          'pos.y = disperse * sin( theta ) + pos.y;',
+          'pos.x += disperse * cos( theta );',
+          'pos.y += disperse * sin( theta );',
           'pos.z += amp;',
+
+          'float tx = 12.0 * noise( pos.xy * sum );',
+          'float ty = 2.0 * disperse;',//'* pos.z;',
+
+          'pos.x += ty * cos( tx );',
+          'pos.y += ty * sin( tx );',
 
           'pos.w -= t * band;',
 

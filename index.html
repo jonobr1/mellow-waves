@@ -262,7 +262,41 @@
         var camera = new THREE.PerspectiveCamera(60);
         camera.frustumSize = 100;
         camera.position.z = camera.frustumSize;
-        renderer.setPixelRatio(1);
+        if (has.mobile) {
+          renderer.setPixelRatio(1);
+        }
+
+        geometry = new THREE.PlaneBufferGeometry(
+          camera.frustumSize / 2, camera.frustumSize / 2);
+
+        material = new THREE.MeshBasicMaterial({
+          map: loader.load(root + '/images/glow.jpg'),
+          opacity: 0,
+          transparent: true,
+          depthWrite: false,
+          depthTest: false,
+          blending: THREE.AdditiveBlending
+        });
+
+        var glows = new THREE.Group();
+        glows.userData.amount = 12;
+        scene.add(glows);
+
+        for (var i = 0; i < glows.userData.amount; i++) {
+
+          var pct = i / (glows.userData.amount - 1);
+          var theta = TWO_PI * pct;
+          var glow = new THREE.Mesh(geometry, material.clone());
+
+          glow.position.x = camera.frustumSize * Math.cos(theta) / 3.75;
+          glow.position.y = camera.frustumSize * Math.sin(theta) / 3.75;
+          glow.userData.band = Math.floor(Math.random() * Equalizer.Resolution / 2);
+          glow.userData.opacity = Math.random();
+          glow.userData.scale = Math.random();
+
+          glows.add(glow);
+
+        }
 
         var gpgpu = new GPGPU(renderer);
         var simulation = new GPGPU.Simulation()
@@ -322,10 +356,10 @@
           positions[j + 1] = Math.floor(i / size) / size;
         }
 
-        var geometry = new THREE.BufferGeometry();
+        geometry = new THREE.BufferGeometry();
         geometry.addAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-        var material = new THREE.ShaderMaterial({
+        material = new THREE.ShaderMaterial({
           uniforms: {
             uvTransform: {
               type: 'm3',
@@ -363,14 +397,9 @@
 
               'vec4 data = texture2D( map, position.xy );',
               'vec3 vPosition = vec3( data.xyz );',
-              'float theta = rotation;',
-              'vec3 expand = vec3( radius * cos( theta ), radius * sin( theta ), 0.0 );',
 
-              'float dist = distance( expand, vPosition );',
-              'float t = smoothstep( 0.0, radius * 2.0, dist );',
               'gl_PointSize = 1.0;',
-
-              'opacity = mix( data.w, data.w * 0.5, t );',
+              'opacity = step( 0.16, data.w );',
 
               'gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );',
 
@@ -379,12 +408,9 @@
           ].join('\n'),
           fragmentShader: [
 
-            'uniform mat3 uvTransform;',
-
             'varying float opacity;',
 
             'void main() {',
-              'vec2 uv = ( uvTransform * vec3( gl_PointCoord.x, 1.0 - gl_PointCoord.y, 1.0 ) ).xy;',
               'gl_FragColor = vec4( 1.0, 1.0, 1.0, opacity );',
             '}'
 
@@ -532,11 +558,14 @@
           var magnitude = ring.magnitude;
           var rStep = ring.velocity * ring.direction;
 
+          fft = Math.pow(fft, 10);
+
           ring.rotation += rStep / (50 * Math.sqrt( phi / 30 ));
+          // glows.rotation.z = ring.rotation;
 
           simulation
             .setFFT(fft)
-            .setRotation(- ring.rotation);
+            .setRotation(ring.rotation);
 
           material.uniforms.fft.value = fft;
           material.uniforms.rotation.value -= (fft * Math.PI / 20) * ring.direction;
@@ -558,17 +587,34 @@
 
               if (anchor) {
 
-                var theta = pct * TWO_PI;
-                var phase = Math.sin(pct * TWO_PI * phi);
-                var amp = radius * (1 + phase * magnitude * fft);
-
-                var x = amp * Math.cos(theta);
-                var y = amp * Math.sin(theta);
-
-                anchor.x = x;
-                anchor.y = y;
+                setPosition(pct, anchor, radius, magnitude, fft, phi);
 
               }
+
+            }
+
+            var glow = glows.children[i];
+
+            if (glow) {
+
+              var band = equalizer.bands[glow.userData.band].peak.value;
+              band /= 256;
+              band = Math.pow(band, 10);
+
+              opacity = (band + 0.1) * glow.userData.opacity;
+
+              // setPosition(
+              //   i / (glows.userData.amount - 1),
+              //   glow.position,
+              //   camera.frustumSize / 4,
+              //   magnitude,
+              //   fft,
+              //   phi
+              // );
+
+              glow.scale.x += ((band * glow.userData.scale + 1) - glow.scale.x) * 0.0125;
+              glow.scale.y = glow.scale.x;
+              glow.material.opacity += (opacity - glow.material.opacity) * 0.125;
 
             }
 
@@ -983,6 +1029,20 @@
 
         function getMargin() {
           return Math.max(two.width * 0.01, 10);
+        }
+
+        function setPosition(pct, anchor, radius, magnitude, fft, phi) {
+
+          var theta = pct * TWO_PI;
+          var phase = Math.sin(pct * TWO_PI * phi);
+          var amp = radius * (1 + phase * magnitude * fft);
+
+          var x = amp * Math.cos(theta);
+          var y = amp * Math.sin(theta);
+
+          anchor.x = x;
+          anchor.y = y;
+
         }
 
       </script>
