@@ -141,6 +141,7 @@
     <div id="lobby"></div>
     <div class="scripts">
       <script src="./third-party/has.js"></script>
+      <script src="./third-party/url.js"></script>
       <script src="./third-party/three.js"></script>
       <script src="./third-party/two.js"></script>
       <script src="./third-party/sound.js"></script>
@@ -207,7 +208,7 @@
         logo.visible = false;
         logo.opacity = 0;
         logo.texture.bind(Two.Events.load, function() {
-          logo.visible = true;
+          logo.visible = !url.boolean('kiosk');
         });
 
         var textStyles = {
@@ -244,6 +245,11 @@
           });
           window.location.href = buy.digital.link;
         };
+
+        if (url.boolean('kiosk')) {
+          buy.physical.visible = false;
+          buy.digital.visible = false;
+        }
 
         var renderer = new THREE.WebGLRenderer({ antialias: true, stencil: false });
         var scene = new THREE.Scene();
