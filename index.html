@@ -407,10 +407,10 @@
 
         for (var i = 0; i < urls.length; i++) {
 
-          var url = root + '/assets/sounds/' + urls[i];
+          var uri = root + '/assets/sounds/' + urls[i];
           var seed = Math.random();
 
-          sounds.push(new Sound(url, loaded));
+          sounds.push(new Sound(uri, loaded));
 
           sounds[i].phi = Math.floor(seed * 30) + 2;
           sounds[i].direction = Math.random() > 0.5 ? 1 : - 1;
