@@ -330,12 +330,15 @@
 
         simulation.setOriginsTexture(origins.texture);
 
+        var renderTargetType = ( /(iPad|iPhone|iPod)/g.test( navigator.userAgent ) )
+          ? THREE.HalfFloatType : THREE.FloatType;
+
         var renderTargets = {
           a: new THREE.WebGLRenderTarget(size, size, {
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
             format: THREE.RGBAFormat,
-            type: THREE.FloatType,
+            type: renderTargetType,
             depthBuffer: false,
             stencilBuffer: false
           }),
@@ -343,7 +346,7 @@
             minFilter: THREE.NearestFilter,
             magFilter: THREE.NearestFilter,
             format: THREE.RGBAFormat,
-            type: THREE.FloatType,
+            type: renderTargetType,
             depthBuffer: false,
             stencilBuffer: false
           })
@@ -1023,7 +1026,7 @@
 
         function isWebGLCompatible() {
           return renderer.context.getExtension('OES_texture_float')
-            && renderer.context.getExtension('WEBGL_draw_buffers');
+            && renderer.capabilities.maxVertexTextures > 0;
         }
 
         function getMargin() {
