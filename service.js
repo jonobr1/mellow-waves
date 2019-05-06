@@ -19,9 +19,8 @@ self.addEventListener('install', (event) => {
         '/',
         // Here we try to pre-fetch all the files to ensure the app will work offline on first load.
         /*
-        * NOTE: This is not necessary if the app has been loaded while online at least once,
-        * since cache handler below caches all files anyway.
-        * You can remove this list but that would require at least two page loads to enable offline mode.
+        * NOTE: This is not necessary if the app has been loaded while online at least once after service worker install, since cache handler below caches all files anyway.
+        * You can remove this list but that would require at least two page loads to enable offline mode - once for sw install and once more to fill up the cache through fetch handler.
         */
         '/images/cornelius-logo-192x192.png',
         '/images/cornelius-logo.png',
@@ -81,7 +80,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('fetch', (event) => {
 
-  // Following serives break when served from local cache.
+  // Following serices break when served from local cache.
   // Let's serve them from the server always.
   if (/fonts.googleapis/.test(event.request.url)) {
     event.respondWith(fetch(event.request));
