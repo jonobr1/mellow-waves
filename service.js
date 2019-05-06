@@ -1,12 +1,3 @@
-const urlB64ToUint8Array = base64String => {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
-  return outputArray;
-}
-
 // You can change cache version to disable old cache.
 // However, this is not necesary since fetch handler below, updates caches regularily.
 const version = "0.0.1";
@@ -73,6 +64,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Implementation of the stale-while-revalidate caching strategy.
 // Following fetch handler always returns cached file if available.
 // Subsequently, it fetches the requested url and updates the cache if successful.
 // This ensures that files are always serverved as fast as possible (cached).
