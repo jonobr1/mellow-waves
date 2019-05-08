@@ -1,0 +1,4 @@
+# cornelius.patatap.com
+
+User-agent: *
+Disallow:

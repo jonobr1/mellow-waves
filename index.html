@@ -1,9 +1,10 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
 
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no">
+
     <meta name="theme-color" content="#000">
 
     <title>Patatap: Mellow Waves</title>
@@ -11,6 +12,9 @@
     <meta name="name" content="Patatap">
     <meta name="image" content="http://cornelius.patatap.com/images/thumbnail.jpg">
     <meta name="description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
+
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Patatap" />
 
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Patatap">
@@ -34,6 +38,12 @@
     <meta property="og:description" content="Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.">
 
     <link rel="icon" href="/images/favicon.ico" />
+
+    <link rel="manifest" href="./manifest.json" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Patatap" />
 
     <style>
 
@@ -152,8 +162,14 @@
       <script src="./src/simulation.js"></script>
       <script>
 
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.register('./service.js').then(function(serviceWorkerRegistration) {
+            serviceWorkerRegistration.update();
+          });
+        }
+
         var root = /localhost/.test(window.location)
-          ? './' : '//storage.googleapis.com/cdn.patatap.com/mellow-waves';
+          ? './' : '//storage.googleapis.com/cdn.patatap.com/mellow-waves/';
         var TWO_PI = Math.PI * 2;
         var frameCount = 0;
 
@@ -204,7 +220,7 @@
         ring.velocity = 0;
         ring.radius = Math.min(two.width, two.height) / 4.6;
 
-        var logo = two.makeSprite(root + '/images/cornelius-logo.png', 0, 0);
+        var logo = two.makeSprite(root + 'images/cornelius-logo.png', 0, 0);
         logo.visible = false;
         logo.opacity = 0;
         logo.texture.bind(Two.Events.load, function() {
@@ -270,7 +286,7 @@
           camera.frustumSize / 2, camera.frustumSize / 2);
 
         material = new THREE.MeshBasicMaterial({
-          map: loader.load(root + '/images/glow.jpg'),
+          map: loader.load(root + 'images/glow.jpg'),
           opacity: 0,
           transparent: true,
           depthWrite: false,
@@ -434,7 +450,7 @@
 
         for (var i = 0; i < urls.length; i++) {
 
-          var uri = root + '/assets/sounds/' + urls[i];
+          var uri = root + 'assets/sounds/' + urls[i];
           var seed = Math.random();
 
           sounds.push(new Sound(uri, loaded));
@@ -1059,5 +1075,6 @@
       </script>
 
     </div>
+    <noscript>JavaScript is required to view this page!</noscript>
   </body>
 </html>
