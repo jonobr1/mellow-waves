@@ -1,34 +1,34 @@
 // You can change cache version to disable old cache.
 // However, this is not necesary since fetch handler below, updates caches regularily.
-const version = "0.0.1";
+const version = "1.0.0";
 const cacheName = `patatap-${version}`;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(cacheName).then(cache => {
       return cache.addAll([
-        '/',
+        './',
         // Here we try to pre-fetch all the files to ensure the app will work offline on first load.
         /*
         * NOTE: This is not necessary if the app has been loaded while online at least once after service worker install, since cache handler below caches all files anyway.
         * You can remove this list but that would require at least two page loads to enable offline mode - once for sw install and once more to fill up the cache through fetch handler.
         */
-        '/images/cornelius-logo-192x192.png',
-        '/images/cornelius-logo.png',
-        '/images/favicon.ico',
-        '/images/glow.jpg',
-        '/images/icons/sync.svg',
-        '/manifest.json',
-        '/src/gpgpu.js',
-        '/src/sequencer.js',
-        '/src/simulation.js',
-        '/third-party/equalizer.js',
-        '/third-party/has.js',
-        '/third-party/sound.js',
-        '/third-party/three-r90dev.js',
-        '/third-party/to-half.js',
-        '/third-party/two-v0.7.0.js',
-        '/third-party/url.js',
+        './images/cornelius-logo-192x192.png',
+        './images/cornelius-logo.png',
+        './images/favicon.ico',
+        './images/glow.jpg',
+        './images/icons/sync.svg',
+        './manifest.json',
+        './src/gpgpu.js',
+        './src/sequencer.js',
+        './src/simulation.js',
+        './third-party/equalizer.js',
+        './third-party/has.js',
+        './third-party/sound.js',
+        './third-party/three-r90dev.js',
+        './third-party/to-half.js',
+        './third-party/two-v0.7.0.js',
+        './third-party/url.js',
         '//storage.googleapis.com/cdn.patatap.com/mellow-waves/assets/sounds/M01_1.mp3',
         '//storage.googleapis.com/cdn.patatap.com/mellow-waves/assets/sounds/M02_1.mp3',
         '//storage.googleapis.com/cdn.patatap.com/mellow-waves/assets/sounds/M03_1.mp3',
