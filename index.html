@@ -348,6 +348,7 @@
 
         var renderTargetType = ( /(iPad|iPhone|iPod)/g.test( navigator.userAgent ) )
           ? THREE.HalfFloatType : THREE.FloatType;
+        var renderTargetTYpe = THREE.HalfFloatType;
 
         var renderTargets = {
           a: new THREE.WebGLRenderTarget(size, size, {
@@ -539,13 +540,13 @@
 
         }
 
-        function loop() {
+        function loop(millis) {
 
           update();
 
           if (isWebGLCompatible()) {
 
-            simulation.setTimer(Sound.ctx.currentTime);
+            simulation.setTimer((millis || 0) / 1000);
 
             if (frameCount % 2 === 0) {
               gpgpu.pass(simulation.setPositionsTexture(renderTargets.a), renderTargets.b);
@@ -900,6 +901,20 @@
           window.addEventListener('touchmove', touchmove, false);
           window.addEventListener('touchend', touchend, false);
           window.addEventListener('touchcancel', touchend, false);
+
+          two.renderer.domElement.addEventListener('click', resume, false);
+
+        }
+
+        function resume(e) {
+
+          var ctx = Sound.ctx;
+
+          if (ctx && /suspended/i.test(ctx.state)) {
+            ctx.resume();
+          }
+
+          two.renderer.domElement.removeEventListener('click', resume, false);
 
         }
 
