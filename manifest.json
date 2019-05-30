@@ -3,7 +3,7 @@
   "short_name": "Patatap",
   "description": "Patatap is a portable animation and sound kit. With the touch of a finger create melodies charged with moving shapes. Warning: contains flashing images.",
   "lang": "en-US",
-  "start_url": "/?kiosk=true",
+  "start_url": "./index.html?kiosk=true",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",

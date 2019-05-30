@@ -7,7 +7,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(cacheName).then(cache => {
       return cache.addAll([
-        './',
+        './index.html',
         // Here we try to pre-fetch all the files to ensure the app will work offline on first load.
         /*
         * NOTE: This is not necessary if the app has been loaded while online at least once after service worker install, since cache handler below caches all files anyway.
