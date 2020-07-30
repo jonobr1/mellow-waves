@@ -346,9 +346,9 @@
 
         simulation.setOriginsTexture(origins.texture);
 
-        var renderTargetType = ( /(iPad|iPhone|iPod)/g.test( navigator.userAgent ) )
-          ? THREE.HalfFloatType : THREE.FloatType;
-        var renderTargetTYpe = THREE.HalfFloatType;
+        // var renderTargetType = ( /(iPad|iPhone|iPod)/g.test( navigator.userAgent ) )
+        //   ? THREE.HalfFloatType : THREE.FloatType;
+        var renderTargetType = THREE.HalfFloatType;
 
         var renderTargets = {
           a: new THREE.WebGLRenderTarget(size, size, {
